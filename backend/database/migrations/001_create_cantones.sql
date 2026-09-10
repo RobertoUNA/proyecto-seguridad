@@ -1,0 +1,13 @@
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+CREATE TABLE IF NOT EXISTS canton (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    poblacion INTEGER,
+    geom GEOMETRY(MultiPolygon, 4326),
+    fuente VARCHAR(50) DEFAULT 'SNIT/ArcGIS',
+    fecha_obtencion TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_canton_geom ON canton USING GIST (geom);

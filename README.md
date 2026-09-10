@@ -1,0 +1,210 @@
+# Observatorio de Seguridad Vial y Urbana de Costa Rica
+
+Sistema web que integra **4 fuentes OSINT de Costa Rica** y las cruza
+espacialmente para responder: **¿qué tan preparada está una zona ante una
+emergencia de seguridad o un accidente vial?**
+
+- Fuentes: **OIJ/Poder Judicial**, **COSEVI**, **SNIT** y **OpenStreetMap/Overpass**.
+- Valor central: la relación geoespacial entre criminalidad, accidentabilidad e
+  infraestructura de atención (hospitales, comisarías, vías).
+- Solo datos **agregados por cantón/distrito**, nunca perfiles individuales.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Clonar
+git clone https://github.com/RobertoUNA/proyecto-seguridad.git
+cd proyecto-seguridad
+
+# 2. Base de datos (PostgreSQL + PostGIS)
+psql -U postgres -c "CREATE ROLE seguridad_vial LOGIN PASSWORD 'S3gur!d@dV1al_2026' CREATEDB;"
+psql -U postgres -c "CREATE DATABASE seguridad_vial_db OWNER seguridad_vial;"
+psql -U postgres -d seguridad_vial_db -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+
+# 3. Backend
+cd backend
+npm install
+npm run db:migrate
+npm run start:dev          # http://localhost:3000
+
+# 4. Workers de ingesta (en otra terminal)
+cd ..
+pip install -r workers/snit/requirements.txt
+pip install -r workers/oij/requirements.txt
+python workers/snit/fetch_cantones.py
+python workers/oij/fetch_delitos.py --anio 2020 2021 2022 2023 2024 2025
+
+# 5. Frontend (en otra terminal)
+cd frontend
+npm install
+npm run dev                # http://localhost:5173
+```
+
+---
+
+## Prerrequisitos
+
+| Requisito | Versión mínima | Verificado con |
+|-----------|---------------|----------------|
+| Node.js | >= 20 | 22 |
+| Python | >= 3.10 | 3.12 |
+| PostgreSQL | >= 13 | 16 |
+| PostGIS | >= 3.0 | 3.6.1 |
+
+> **PostGIS**: si no está instalado, descargar el bundle oficial para tu versión
+> de PostgreSQL desde `https://download.osgeo.org/postgis/windows/`. Luego ejecutar:
+> `psql -U postgres -d seguridad_vial_db -c "CREATE EXTENSION IF NOT EXISTS postgis;"`.
+
+---
+
+## Estructura del proyecto
+
+```
+proyecto-seguridad/
+├── backend/                   API NestJS (TypeScript)
+│   ├── src/modules/snit/      Cantones (límites oficiales + geometría PostGIS)
+│   ├── src/modules/oij/       Delitos (normalización y endpoints)
+│   ├── database/migrations/   SQL: 001_cantones, 002_delitos
+│   ├── .env.example           Variables de entorno documentadas
+│   └── package.json
+├── frontend/                  React + TypeScript + Vite + Leaflet
+│   ├── src/components/        Mapa, filtros, ficha de cantón
+│   └── package.json
+├── workers/                   Scripts Python de ingesta
+│   ├── snit/                  fetch_cantones.py, backfill_cantones.py
+│   └── oij/                   fetch_delitos.py
+├── plan-proyecto-seguridad-vial-urbana.md   Roadmap y tareas pendientes
+└── .gitignore
+```
+
+---
+
+## Arquitectura
+
+```
+Fuentes OSINT (OIJ, COSEVI, SNIT, OSM/Overpass)
+        │
+        ▼
+  Workers de ingesta (Python)
+   - normalizan cada fuente a un modelo común
+   - guardan fuente y fecha de obtención
+        │
+        ▼
+   PostgreSQL + PostGIS (seguridad_vial_db)
+        │
+        ▼
+   API NestJS (backend/)
+   - /api/cantones         (SNIT) ✅
+   - /api/delitos          (OIJ)  ✅
+   - /api/accidentes       (COSEVI) ⏳ pendiente
+   - /api/infraestructura  (OSM)   ⏳ pendiente
+   - /api/cantones/:id/panorama (cruce) ⏳ pendiente
+        │
+        ▼
+   Frontend React + TS (Leaflet)
+   - mapa interactivo con capas togglables
+   - panel de filtros + ficha de cantón
+```
+
+**Principio clave**: el backend consume y normaliza; el frontend nunca llama
+directo a las fuentes externas (evita CORS, controla caché y errores).
+
+---
+
+## Estado actual del proyecto
+
+### Completado
+
+| Módulo | Estado | Detalle |
+|--------|--------|---------|
+| **Base de datos** | ✅ | PostgreSQL + PostGIS, migraciones SQL, esquema `cantones` y `delitos` |
+| **Worker SNIT** | ✅ | `fetch_cantones.py` descarga geometrías cantonales vía ArcGIS FeatureServer |
+| **Worker OIJ** | ✅ | `fetch_delitos.py` descarga CSVs de datosabiertospj (2020-2025) |
+| **Backend SNIT** | ✅ | Endpoints `GET /api/cantones` y `GET /api/cantones/:codigo` |
+| **Backend OIJ** | ✅ | Endpoints `/api/delitos`, `/api/delitos/por-canton`, `/api/delitos/tipos` |
+| **Frontend mapa** | ✅ | Mapa Leaflet con capa de cantones, panel de filtros, ficha de detalle |
+| **Migraciones SQL** | ✅ | `001_create_cantones.sql`, `002_create_delitos.sql` |
+
+### Pendiente (tareas para el equipo)
+
+| Tarea | Responsable | Estado | Notas |
+|-------|-------------|--------|-------|
+| Módulo **COSEVI** (accidentes vial) | Persona B | 🔴 No iniciado | Verificar portal COSEVI, normalizar datos, crear worker + módulo NestJS |
+| Módulo **OSM/Overpass** (infraestructura) | Persona D | 🔴 No iniciado | Hospitales, clínicas, comisarías vía Overpass API, caché Redis |
+| Endpoint de cruce `/api/cantones/:id/panorama` | Compartido | 🔴 No iniciado | Combina las 4 fuentes + índice de cobertura |
+| Geometría de 5 cantones faltantes | — | 🟡 Parcial | Sarchí, Río Cuarto, Quepos, Monteverde, Puerto Jiménez (DTA 2022 sin geom) |
+| Capas adicionales en frontend | — | 🔴 No iniciado | Heatmap delitos, marcadores infraestructura, gráficos por cantón |
+| Redis caché para Overpass/SNIT | — | 🔴 No iniciado | Evitar sobrecargar APIs públicas |
+| Despliegue | — | 🔴 No iniciado | Decidir plataforma (Vercel, Railway, etc.) |
+
+Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y contexto por módulo.
+
+---
+
+## Endpoints de la API
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/cantones` | FeatureCollection GeoJSON de todos los cantones (SNIT) |
+| GET | `/api/cantones/:codigo` | Un cantón por código DTA |
+| GET | `/api/delitos?canton&tipo&desde&hasta` | Delitos filtrados + resumen por cantón |
+| GET | `/api/delitos/por-canton` | Totales por cantón (para choropleth) |
+| GET | `/api/delitos/tipos` | Lista de tipos de delito disponibles |
+
+Las respuestas incluyen metadata: `X-Data-Source`, `X-Fetch-Date`, y campos
+`fuente` / `fecha_obtencion` en cada registro.
+
+---
+
+## Variables de entorno
+
+Copiar `backend/.env.example` a `backend/.env` y ajustar valores:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=seguridad_vial
+DB_PASSWORD=tu_password
+DB_NAME=seguridad_vial_db
+PORT=3000
+```
+
+> **Nunca** commitear el archivo `.env` con credenciales reales.
+
+---
+
+## Decisiones técnicas y limitaciones
+
+1. **SNIT desactualizado**: el FeatureServer "Cantones_de_Costa_Rica" no incluye
+   cantones creados después de 2015. Se dieron de alta 5 cantones nuevos con
+   códigos DTA 2022 **sin geometría** (geom NULL). Pendiente completar cuando
+   exista una capa oficial vigente.
+
+2. **COSEVI**: portal pendiente de verificar en vivo. Puede requerir scraping
+   estructurado si no hay descarga directa.
+
+3. **Overpass API**: rechazó consultas desde red local durante pruebas (406/timeout).
+   El módulo OSM queda para la siguiente fase.
+
+4. **Alias de nombres OIJ→SNIT**: se normalizan acentos y mayúsculas. Mapeos:
+   `LEÓN CORTÉS` → `LEÓN CORTÉS CASTRO`, `VÁSQUEZ DE CORONADO` → `VÁZQUEZ DE CORONADO`.
+
+5. **Correlación ≠ causalidad**: la UI lo indica explícitamente.
+
+---
+
+## Consideraciones éticas
+
+- No se evaden CAPTCHA, autenticación ni rate limits de ninguna fuente.
+- No se publican tokens/credenciales (`.env` en `.gitignore`).
+- Solo datos agregados por cantón/zona, nunca perfiles individuales.
+- Se respetan los límites de uso de la API de Overpass.
+- Cada registro almacena `fuente` y `fecha_obtencion`.
+
+---
+
+## Licencia
+
+Proyecto académico — Universidad Nacional (UNA), Costa Rica.
