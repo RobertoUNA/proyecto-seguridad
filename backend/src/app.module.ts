@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnitModule } from './modules/snit/snit.module';
 import { OijModule } from './modules/oij/oij.module';
+import { CoseviModule } from './modules/cosevi/cosevi.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { OijModule } from './modules/oij/oij.module';
     }),
     SnitModule,
     OijModule,
+    CoseviModule,
   ],
 })
 export class AppModule {}

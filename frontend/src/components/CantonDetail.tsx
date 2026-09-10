@@ -1,17 +1,18 @@
-import type { DelitosResponse, FuenteInfo } from '../types'
+import type { DetalleFuente, FuenteInfo } from '../types'
 
 interface Props {
   seleccion: { codigo: string; nombre: string }
-  datos: DelitosResponse | null
+  datos: DetalleFuente | null
   fuenteMapa: FuenteInfo
+  etiquetaMetrica: string
   cargando: boolean
   error: string | null
   onCerrar: () => void
 }
 
-function agruparPorTipo(datos: DelitosResponse) {
+function agruparPorTipo(datos: DetalleFuente) {
   const mapa = new Map<string, number>()
-  for (const d of datos.delitos) {
+  for (const d of datos.registros) {
     mapa.set(d.tipo, (mapa.get(d.tipo) ?? 0) + d.cantidad)
   }
   return [...mapa.entries()].sort((a, b) => b[1] - a[1])
@@ -21,6 +22,7 @@ export default function CantonDetail({
   seleccion,
   datos,
   fuenteMapa,
+  etiquetaMetrica,
   cargando,
   error,
   onCerrar,
@@ -44,7 +46,7 @@ export default function CantonDetail({
         <>
           <p className="resumen">
             <strong>{datos.resumen.registro_cantidad.toLocaleString('es-CR')}</strong>{' '}
-            casos en el periodo seleccionado
+            {etiquetaMetrica} en el periodo seleccionado
           </p>
 
           <h3>Distribución por tipo</h3>

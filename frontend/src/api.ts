@@ -3,6 +3,9 @@ import type {
   DelitoFiltros,
   DelitoTotalesCollection,
   DelitosResponse,
+  AccidenteFiltros,
+  AccidenteTotalesCollection,
+  AccidentesResponse,
 } from './types'
 
 const API_BASE = '/api'
@@ -50,5 +53,36 @@ export function fetchDelitosPorCanton(
   const qs = params.toString()
   return http<DelitoTotalesCollection>(
     qs ? `/delitos/por-canton?${qs}` : '/delitos/por-canton',
+  )
+}
+
+export function fetchAccidenteTipos(): Promise<{ tipos: string[] }> {
+  return http<{ tipos: string[] }>('/accidentes/tipos')
+}
+
+export function fetchAccidenteClases(): Promise<{ clases: string[] }> {
+  return http<{ clases: string[] }>('/accidentes/clases')
+}
+
+export function fetchAccidentes(filtros: AccidenteFiltros): Promise<AccidentesResponse> {
+  const params = new URLSearchParams()
+  if (filtros.canton) params.set('canton', filtros.canton)
+  if (filtros.anio) params.set('anio', filtros.anio)
+  if (filtros.clase) params.set('clase', filtros.clase)
+  if (filtros.tipo) params.set('tipo', filtros.tipo)
+  const qs = params.toString()
+  return http<AccidentesResponse>(qs ? `/accidentes?${qs}` : '/accidentes')
+}
+
+export function fetchAccidentesPorCanton(
+  filtros: AccidenteFiltros,
+): Promise<AccidenteTotalesCollection> {
+  const params = new URLSearchParams()
+  if (filtros.anio) params.set('anio', filtros.anio)
+  if (filtros.clase) params.set('clase', filtros.clase)
+  if (filtros.tipo) params.set('tipo', filtros.tipo)
+  const qs = params.toString()
+  return http<AccidenteTotalesCollection>(
+    qs ? `/accidentes/por-canton?${qs}` : '/accidentes/por-canton',
   )
 }

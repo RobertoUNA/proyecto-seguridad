@@ -1,18 +1,17 @@
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
 import type { Layer, PathOptions } from 'leaflet'
-import type { CantonCollection, DelitoTotalesCollection } from '../types'
+import type { CantonCollection, CapaMapaCollection } from '../types'
 
 interface Props {
   cantones: CantonCollection
-  delitosPorCanton: DelitoTotalesCollection
+  totalesPorCanton: CapaMapaCollection
+  etiquetaMetrica: string
   cantonSeleccionado: { codigo: string; nombre: string } | null
   onSeleccionar: (codigo: string, nombre: string) => void
 }
 
-const MAX_VALOR = 1_000_000
-
-function colorPorIntensidad(valor: number): string {
-  const t = Math.min(1, valor / MAX_VALOR)
+function colorPorIntensidad(valor: number, maximo: number): string {
+  const t = Math.min(1, valor / Math.max(maximo, 1))
   const r = Math.round(153 + (178 - 153) * t)
   const g = Math.round(102 + (24 - 102) * t)
   const b = Math.round(255 + (21 - 255) * t)
@@ -23,16 +22,18 @@ const colorBase = 'rgba(58, 74, 102, 0.55)'
 
 export default function MapView({
   cantones,
-  delitosPorCanton,
+  totalesPorCanton,
+  etiquetaMetrica,
   cantonSeleccionado,
   onSeleccionar,
 }: Props) {
+  const maximo = Math.max(...totalesPorCanton.features.map((f) => f.properties.total), 1)
   const colorDeCanton = (codigo: string): string => {
-    const f = delitosPorCanton.features.find(
+    const f = totalesPorCanton.features.find(
       (x) => x.properties.codigo === codigo,
     )
     if (!f || f.geometry == null) return colorBase
-    return colorPorIntensidad(f.properties.total_delitos)
+    return colorPorIntensidad(f.properties.total, maximo)
   }
 
   const estiloCanton = (
@@ -51,17 +52,17 @@ export default function MapView({
   const enCadaFeature = (feature: GeoJSON.Feature, layer: Layer) => {
     const nombre = feature.properties?.nombre as string
     const codigo = feature.properties?.codigo as string
-    const f = delitosPorCanton.features.find(
+    const f = totalesPorCanton.features.find(
       (x) => x.properties.codigo === codigo,
     )
-    const total = f?.properties.total_delitos
+    const total = f?.properties.total
     layer.on('click', () => onSeleccionar(codigo, nombre))
     layer.bindTooltip(
       `<strong>${nombre}</strong><br/>${
         total != null && total > 0
-          ? `${total.toLocaleString('es-CR')} casos en el periodo`
+          ? `${total.toLocaleString('es-CR')} ${etiquetaMetrica} en el periodo`
           : f == null
-            ? 'sin datos de delitos'
+            ? `sin datos de ${etiquetaMetrica}`
             : '0 casos en el periodo'
       }`,
       { sticky: true },
@@ -75,7 +76,7 @@ export default function MapView({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <GeoJSON
-        key={`${cantonSeleccionado?.codigo ?? 'all'}-${delitosPorCanton.features.length}`}
+        key={`${cantonSeleccionado?.codigo ?? 'all'}-${totalesPorCanton.features.length}-${etiquetaMetrica}`}
         data={cantones}
         style={estiloCanton}
         onEachFeature={enCadaFeature}
