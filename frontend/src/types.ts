@@ -58,6 +58,66 @@ export interface DelitoFiltros {
   hasta?: string
 }
 
+export type FuenteActiva = 'delitos' | 'accidentes'
+
+export interface AccidenteFiltros {
+  canton?: string
+  anio?: string
+  clase?: string
+  tipo?: string
+}
+
+export interface FiltrosMapa extends DelitoFiltros, AccidenteFiltros {}
+
+export interface AccidenteRow {
+  id: number
+  canton_id: number | null
+  canton_nombre: string | null
+  provincia: string | null
+  distrito: string | null
+  anio: number
+  clase: string
+  tipo: string
+  cantidad: number
+  fuente: string
+  fecha_obtencion: string
+}
+
+export interface AccidenteTotalesProperties {
+  codigo: string | null
+  nombre: string
+  total_accidentes: number
+  clases_distintas: number
+  tipos_distintos: number
+}
+
+export type AccidenteTotalesCollection = GeoCollection<AccidenteTotalesProperties>
+
+export interface AccidentesResponse {
+  accidentes: AccidenteRow[]
+  totales: AccidenteTotalesCollection
+  resumen: { registro_cantidad: number }
+  fuente: string
+  descripcion_fuente: string
+  fecha_obtencion: string | null
+}
+
+export interface CapaMapaProperties {
+  codigo: string | null
+  nombre: string
+  total: number
+}
+
+export type CapaMapaCollection = GeoCollection<CapaMapaProperties>
+
+export interface DetalleFuente {
+  registros: { tipo: string; cantidad: number }[]
+  resumen: { registro_cantidad: number }
+  fuente: string
+  descripcion_fuente: string
+  fecha_obtencion: string | null
+}
+
 export interface FuenteInfo {
   fuente: string
   fecha_obtencion: string | null

@@ -1,11 +1,14 @@
-import type { DelitoFiltros } from '../types'
+import type { FiltrosMapa, FuenteActiva } from '../types'
 
 interface Props {
   cantones: { codigo: string; nombre: string }[]
   tipos: string[]
-  filtros: DelitoFiltros
+  clases: string[]
+  fuente: FuenteActiva
+  filtros: FiltrosMapa
   cargando: boolean
-  onChange: (filtros: DelitoFiltros) => void
+  onFuenteChange: (fuente: FuenteActiva) => void
+  onChange: (filtros: FiltrosMapa) => void
   onAplicar: () => void
   onLimpiar: () => void
 }
@@ -13,13 +16,16 @@ interface Props {
 export default function FilterPanel({
   cantones,
   tipos,
+  clases,
+  fuente,
   filtros,
   cargando,
+  onFuenteChange,
   onChange,
   onAplicar,
   onLimpiar,
 }: Props) {
-  const set = (campo: keyof DelitoFiltros, valor: string) =>
+  const set = (campo: keyof FiltrosMapa, valor: string) =>
     onChange({ ...filtros, [campo]: valor || undefined })
 
   return (
@@ -27,7 +33,15 @@ export default function FilterPanel({
       <h2>Filtros</h2>
 
       <label className="campo">
-        <span>Tipo de delito</span>
+        <span>Fuente de datos</span>
+        <select value={fuente} onChange={(e) => onFuenteChange(e.target.value as FuenteActiva)}>
+          <option value="delitos">Delitos (OIJ)</option>
+          <option value="accidentes">Accidentes (COSEVI)</option>
+        </select>
+      </label>
+
+      <label className="campo">
+        <span>{fuente === 'delitos' ? 'Tipo de delito' : 'Tipo de accidente'}</span>
         <select
           value={filtros.tipo ?? ''}
           onChange={(e) => set('tipo', e.target.value)}
@@ -41,23 +55,32 @@ export default function FilterPanel({
         </select>
       </label>
 
-      <label className="campo">
-        <span>Desde</span>
-        <input
-          type="date"
-          value={filtros.desde ?? ''}
-          onChange={(e) => set('desde', e.target.value)}
-        />
-      </label>
-
-      <label className="campo">
-        <span>Hasta</span>
-        <input
-          type="date"
-          value={filtros.hasta ?? ''}
-          onChange={(e) => set('hasta', e.target.value)}
-        />
-      </label>
+      {fuente === 'delitos' ? (
+        <>
+          <label className="campo">
+            <span>Desde</span>
+            <input type="date" value={filtros.desde ?? ''} onChange={(e) => set('desde', e.target.value)} />
+          </label>
+          <label className="campo">
+            <span>Hasta</span>
+            <input type="date" value={filtros.hasta ?? ''} onChange={(e) => set('hasta', e.target.value)} />
+          </label>
+        </>
+      ) : (
+        <>
+          <label className="campo">
+            <span>Año</span>
+            <input type="number" min="2018" max="2100" placeholder="Ej. 2024" value={filtros.anio ?? ''} onChange={(e) => set('anio', e.target.value)} />
+          </label>
+          <label className="campo">
+            <span>Clase de accidente</span>
+            <select value={filtros.clase ?? ''} onChange={(e) => set('clase', e.target.value)}>
+              <option value="">Todas</option>
+              {clases.map((clase) => <option key={clase} value={clase}>{clase}</option>)}
+            </select>
+          </label>
+        </>
+      )}
 
       <label className="campo">
         <span>Cantón</span>

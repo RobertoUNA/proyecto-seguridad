@@ -1,60 +1,117 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
-import { fetchCantones, fetchDelitos, fetchDelitosPorCanton, fetchTipos } from './api'
+import {
+  fetchAccidenteClases,
+  fetchAccidenteTipos,
+  fetchAccidentes,
+  fetchAccidentesPorCanton,
+  fetchCantones,
+  fetchDelitos,
+  fetchDelitosPorCanton,
+  fetchTipos,
+} from './api'
 import type {
+  AccidenteTotalesCollection,
+  CapaMapaCollection,
   CantonCollection,
-  DelitoFiltros,
   DelitoTotalesCollection,
-  DelitosResponse,
+  DetalleFuente,
+  FiltrosMapa,
+  FuenteActiva,
   FuenteInfo,
 } from './types'
 import MapView from './components/MapView'
 import FilterPanel from './components/FilterPanel'
 import CantonDetail from './components/CantonDetail'
 
+function capaDesdeDelitos(datos: DelitoTotalesCollection): CapaMapaCollection {
+  return {
+    type: 'FeatureCollection',
+    features: datos.features.map((feature) => ({
+      ...feature,
+      properties: {
+        codigo: feature.properties.codigo,
+        nombre: feature.properties.nombre,
+        total: feature.properties.total_delitos,
+      },
+    })),
+  }
+}
+
+function capaDesdeAccidentes(datos: AccidenteTotalesCollection): CapaMapaCollection {
+  return {
+    type: 'FeatureCollection',
+    features: datos.features.map((feature) => ({
+      ...feature,
+      properties: {
+        codigo: feature.properties.codigo,
+        nombre: feature.properties.nombre,
+        total: feature.properties.total_accidentes,
+      },
+    })),
+  }
+}
+
 export default function App() {
   const [cantones, setCantones] = useState<CantonCollection | null>(null)
+  const [fuente, setFuente] = useState<FuenteActiva>('delitos')
   const [tipos, setTipos] = useState<string[]>([])
-  const [filtros, setFiltros] = useState<DelitoFiltros>({})
-  const [delitosPorCanton, setDelitosPorCanton] =
-    useState<DelitoTotalesCollection>({ type: 'FeatureCollection', features: [] })
-  const [seleccion, setSeleccion] = useState<{
-    codigo: string
-    nombre: string
-  } | null>(null)
-  const [detalle, setDetalle] = useState<DelitosResponse | null>(null)
+  const [clases, setClases] = useState<string[]>([])
+  const [filtros, setFiltros] = useState<FiltrosMapa>({})
+  const [totalesPorCanton, setTotalesPorCanton] = useState<CapaMapaCollection>({
+    type: 'FeatureCollection',
+    features: [],
+  })
+  const [seleccion, setSeleccion] = useState<{ codigo: string; nombre: string } | null>(null)
+  const [detalle, setDetalle] = useState<DetalleFuente | null>(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fuenteMapa, setFuenteMapa] = useState<FuenteInfo>({
-    fuente: 'SNIT/ArcGIS',
+    fuente: 'OIJ/CKAN + SNIT/ArcGIS',
     fecha_obtencion: null,
-    descripcion: 'Límites cantonales publicados por SNIT/ArcGIS',
+    descripcion: 'Delitos agregados por cantón (Poder Judicial)',
   })
+
+  const actualizarCoropleta = useCallback(
+    async (fuenteActiva: FuenteActiva, filtrosActivos: FiltrosMapa) => {
+      if (fuenteActiva === 'accidentes') {
+        const datos = await fetchAccidentesPorCanton(filtrosActivos)
+        setTotalesPorCanton(capaDesdeAccidentes(datos))
+        setFuenteMapa({
+          fuente: 'COSEVI + SNIT/ArcGIS',
+          fecha_obtencion: null,
+          descripcion: 'Accidentes de tránsito con víctimas agregados por cantón (COSEVI)',
+        })
+        return
+      }
+
+      const datos = await fetchDelitosPorCanton(filtrosActivos)
+      setTotalesPorCanton(capaDesdeDelitos(datos))
+      setFuenteMapa({
+        fuente: 'OIJ/CKAN + SNIT/ArcGIS',
+        fecha_obtencion: null,
+        descripcion: 'Delitos agregados por cantón (Poder Judicial)',
+      })
+    },
+    [],
+  )
 
   useEffect(() => {
     let activo = true
     ;(async () => {
       try {
-        const [cs, ts, pc] = await Promise.all([
+        const [cantonesData, tiposData, totalesData] = await Promise.all([
           fetchCantones(),
           fetchTipos(),
           fetchDelitosPorCanton({}),
         ])
         if (!activo) return
-        setCantones(cs)
-        setTipos(ts.tipos)
-        setDelitosPorCanton(pc)
-        setFuenteMapa({
-          fuente: 'OIJ/CKAN + SNIT/ArcGIS',
-          fecha_obtencion: null,
-          descripcion: 'Delitos agregados por cantón (Poder Judicial)',
-        })
-      } catch (e) {
-        if (activo)
-          setError(
-            e instanceof Error ? e.message : 'No se pudieron cargar los cantones',
-          )
+        setCantones(cantonesData)
+        setTipos(tiposData.tipos)
+        setTotalesPorCanton(capaDesdeDelitos(totalesData))
+      } catch (causa) {
+        if (activo) setError(causa instanceof Error ? causa.message : 'No se pudieron cargar los datos')
       }
     })()
     return () => {
@@ -65,48 +122,57 @@ export default function App() {
   const listaCantones = useMemo(
     () =>
       (cantones?.features ?? [])
-        .map((f) => ({ codigo: f.properties.codigo, nombre: f.properties.nombre }))
+        .map((feature) => ({ codigo: feature.properties.codigo, nombre: feature.properties.nombre }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre)),
     [cantones],
   )
 
-  const actualizarCoropleta = useCallback(
-    async (f: DelitoFiltros) => {
-      const porCanton = await fetchDelitosPorCanton(f)
-      setDelitosPorCanton(porCanton)
-      setFuenteMapa((prev) => ({
-        ...prev,
-        fuente: 'OIJ/CKAN + SNIT/ArcGIS',
-        descripcion: 'Delitos agregados por cantón (Poder Judicial)',
-      }))
+  const cambiarFuente = useCallback(
+    async (nuevaFuente: FuenteActiva) => {
+      setFuente(nuevaFuente)
+      setFiltros({})
+      setSeleccion(null)
+      setDetalle(null)
+      setError(null)
+      setCargando(true)
+      try {
+        if (nuevaFuente === 'accidentes') {
+          const [tiposData, clasesData] = await Promise.all([fetchAccidenteTipos(), fetchAccidenteClases()])
+          setTipos(tiposData.tipos)
+          setClases(clasesData.clases)
+        } else {
+          const tiposData = await fetchTipos()
+          setTipos(tiposData.tipos)
+          setClases([])
+        }
+        await actualizarCoropleta(nuevaFuente, {})
+      } catch (causa) {
+        setError(causa instanceof Error ? causa.message : 'No se pudo cambiar la fuente')
+      } finally {
+        setCargando(false)
+      }
     },
-    [],
+    [actualizarCoropleta],
   )
 
   const aplicarFiltros = useCallback(async () => {
     setCargando(true)
     setError(null)
     try {
-      await actualizarCoropleta(filtros)
+      await actualizarCoropleta(fuente, filtros)
       if (filtros.canton) {
-        const canton = (cantones?.features ?? []).find(
-          (f) => f.properties.codigo === filtros.canton,
-        )
-        if (canton)
-          setSeleccion({
-            codigo: canton.properties.codigo,
-            nombre: canton.properties.nombre,
-          })
+        const canton = (cantones?.features ?? []).find((feature) => feature.properties.codigo === filtros.canton)
+        if (canton) setSeleccion({ codigo: canton.properties.codigo, nombre: canton.properties.nombre })
       } else {
         setSeleccion(null)
         setDetalle(null)
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al consultar delitos')
+    } catch (causa) {
+      setError(causa instanceof Error ? causa.message : 'Error al aplicar filtros')
     } finally {
       setCargando(false)
     }
-  }, [filtros, cantones, actualizarCoropleta])
+  }, [actualizarCoropleta, cantones, filtros, fuente])
 
   const seleccionarCanton = useCallback(
     async (codigo: string, nombre: string) => {
@@ -115,37 +181,49 @@ export default function App() {
       setError(null)
       setDetalle(null)
       try {
-        const d = await fetchDelitos({ ...filtros, canton: codigo })
-        setDetalle(d)
-        setFuenteMapa({
-          fuente: d.fuente,
-          fecha_obtencion: d.fecha_obtencion,
-          descripcion: d.descripcion_fuente,
-        })
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al cargar el detalle')
+        if (fuente === 'accidentes') {
+          const datos = await fetchAccidentes({ ...filtros, canton: codigo })
+          setDetalle({
+            registros: datos.accidentes,
+            resumen: datos.resumen,
+            fuente: datos.fuente,
+            descripcion_fuente: datos.descripcion_fuente,
+            fecha_obtencion: datos.fecha_obtencion,
+          })
+        } else {
+          const datos = await fetchDelitos({ ...filtros, canton: codigo })
+          setDetalle({
+            registros: datos.delitos,
+            resumen: datos.resumen,
+            fuente: datos.fuente,
+            descripcion_fuente: datos.descripcion_fuente,
+            fecha_obtencion: datos.fecha_obtencion,
+          })
+        }
+      } catch (causa) {
+        setError(causa instanceof Error ? causa.message : 'Error al cargar el detalle')
       } finally {
         setCargando(false)
       }
     },
-    [filtros],
+    [filtros, fuente],
   )
 
   const limpiarFiltros = useCallback(() => {
     setFiltros({})
     setSeleccion(null)
     setDetalle(null)
-    void actualizarCoropleta({})
-  }, [actualizarCoropleta])
+    void actualizarCoropleta(fuente, {})
+  }, [actualizarCoropleta, fuente])
+
+  const etiquetaMetrica = fuente === 'accidentes' ? 'accidentes' : 'delitos'
 
   return (
     <div className="app">
       <header className="cabecera">
         <div>
           <h1>Observatorio de Seguridad Vial y Urbana</h1>
-          <p className="sub">
-            Costa Rica — delitos, accidentes e infraestructura de atención
-          </p>
+          <p className="sub">Costa Rica — delitos, accidentes e infraestructura de atención</p>
         </div>
         <div className="estado-fuente" title={fuenteMapa.descripcion}>
           <span className="punto" />
@@ -157,8 +235,11 @@ export default function App() {
         <FilterPanel
           cantones={listaCantones}
           tipos={tipos}
+          clases={clases}
+          fuente={fuente}
           filtros={filtros}
           cargando={cargando}
+          onFuenteChange={(nuevaFuente) => void cambiarFuente(nuevaFuente)}
           onChange={setFiltros}
           onAplicar={() => void aplicarFiltros()}
           onLimpiar={limpiarFiltros}
@@ -168,22 +249,20 @@ export default function App() {
           {cantones ? (
             <MapView
               cantones={cantones}
-              delitosPorCanton={delitosPorCanton}
+              totalesPorCanton={totalesPorCanton}
+              etiquetaMetrica={etiquetaMetrica}
               cantonSeleccionado={seleccion}
-              onSeleccionar={(c, n) => void seleccionarCanton(c, n)}
+              onSeleccionar={(codigo, nombre) => void seleccionarCanton(codigo, nombre)}
             />
           ) : (
             <p className="nota">Cargando cantones…</p>
           )}
           <div className="leyenda">
-            <span className="swatch" style={{ background: 'rgb(153,102,255)' }} />
-            bajo
-            <span className="swatch" style={{ background: 'rgb(184,86,163)' }} />
-            medio
-            <span className="swatch" style={{ background: 'rgb(178,24,21)' }} />
-            alto
+            <span className="swatch" style={{ background: 'rgb(153,102,255)' }} /> bajo
+            <span className="swatch" style={{ background: 'rgb(184,86,163)' }} /> medio
+            <span className="swatch" style={{ background: 'rgb(178,24,21)' }} /> alto
             <span className="leyenda-nota">
-              (intensidad relativa: {delitosPorCanton.features.length} cantones con datos)
+              (intensidad relativa: {totalesPorCanton.features.length} cantones con datos)
             </span>
           </div>
         </div>
@@ -193,6 +272,7 @@ export default function App() {
             seleccion={seleccion}
             datos={detalle}
             fuenteMapa={fuenteMapa}
+            etiquetaMetrica={etiquetaMetrica}
             cargando={cargando}
             error={error}
             onCerrar={() => {
@@ -204,12 +284,9 @@ export default function App() {
       </main>
 
       <footer className="pie">
+        <span>Fuentes: OIJ / Poder Judicial · COSEVI · SNIT · OpenStreetMap (Overpass)</span>
         <span>
-          Fuentes: OIJ / Poder Judicial · COSEVI · SNIT · OpenStreetMap (Overpass)
-        </span>
-        <span>
-          Datos agregados por cantón, sin perfiles individuales. Módulo activo:
-          delitos (OIJ/CKAN).
+          Datos agregados por cantón, sin perfiles individuales. Módulo activo: {etiquetaMetrica} ({fuente === 'accidentes' ? 'COSEVI' : 'OIJ/CKAN'}).
         </span>
       </footer>
     </div>
