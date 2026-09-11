@@ -11,6 +11,9 @@ interface Props {
   onChange: (filtros: FiltrosMapa) => void
   onAplicar: () => void
   onLimpiar: () => void
+  mostrarInfraestructura: boolean
+  cargandoInfraestructura: boolean
+  onToggleInfraestructura: () => void
 }
 
 export default function FilterPanel({
@@ -24,6 +27,9 @@ export default function FilterPanel({
   onChange,
   onAplicar,
   onLimpiar,
+  mostrarInfraestructura,
+  cargandoInfraestructura,
+  onToggleInfraestructura,
 }: Props) {
   const set = (campo: keyof FiltrosMapa, valor: string) =>
     onChange({ ...filtros, [campo]: valor || undefined })
@@ -109,6 +115,22 @@ export default function FilterPanel({
       <p className="nota">
         Los datos se agregan por cantón. Un valor alto no implica causalidad con
         la infraestructura cercana.
+      </p>
+
+      <h2>Capas adicionales</h2>
+      <label className="campo campo-check">
+        <input
+          type="checkbox"
+          checked={mostrarInfraestructura}
+          onChange={onToggleInfraestructura}
+        />
+        <span>
+          Infraestructura de atención (OSM){cargandoInfraestructura ? ' — cargando…' : ''}
+        </span>
+      </label>
+      <p className="nota">
+        Hospitales, clínicas y comisarías. Se superpone a la fuente activa, no
+        la reemplaza.
       </p>
     </aside>
   )

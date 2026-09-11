@@ -19,7 +19,7 @@ git clone https://github.com/RobertoUNA/proyecto-seguridad.git
 cd proyecto-seguridad
 
 # 2. Base de datos (PostgreSQL + PostGIS)
-psql -U postgres -c "CREATE ROLE seguridad_vial LOGIN PASSWORD 'S3gur!d@dV1al_2026' CREATEDB;"
+psql -U postgres -c "CREATE ROLE seguridad_vial LOGIN PASSWORD 'TU_PASSWORD_AQUI' CREATEDB;"
 psql -U postgres -c "CREATE DATABASE seguridad_vial_db OWNER seguridad_vial;"
 psql -U postgres -d seguridad_vial_db -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
@@ -33,8 +33,12 @@ npm run start:dev          # http://localhost:3000
 cd ..
 pip install -r workers/snit/requirements.txt
 pip install -r workers/oij/requirements.txt
+pip install -r workers/cosevi/requirements.txt
+pip install -r workers/osm/requirements.txt
 python workers/snit/fetch_cantones.py
 python workers/oij/fetch_delitos.py --anio 2020 2021 2022 2023 2024 2025
+python workers/cosevi/fetch_accidentes.py
+python workers/osm/fetch_infraestructura.py   # requiere OSM_CONTACT_EMAIL en backend/.env
 
 # 5. Frontend (en otra terminal)
 cd frontend
@@ -74,7 +78,9 @@ proyecto-seguridad/
 │   └── package.json
 ├── workers/                   Scripts Python de ingesta
 │   ├── snit/                  fetch_cantones.py, backfill_cantones.py
-│   └── oij/                   fetch_delitos.py
+│   ├── oij/                   fetch_delitos.py
+│   ├── cosevi/                fetch_accidentes.py
+│   └── osm/                   fetch_infraestructura.py
 ├── plan-proyecto-seguridad-vial-urbana.md   Roadmap y tareas pendientes
 └── .gitignore
 ```
@@ -98,8 +104,8 @@ Fuentes OSINT (OIJ, COSEVI, SNIT, OSM/Overpass)
    API NestJS (backend/)
    - /api/cantones         (SNIT) ✅
    - /api/delitos          (OIJ)  ✅
-   - /api/accidentes       (COSEVI) ⏳ pendiente
-   - /api/infraestructura  (OSM)   ⏳ pendiente
+   - /api/accidentes       (COSEVI) ✅
+   - /api/infraestructura  (OSM)   ✅
    - /api/cantones/:id/panorama (cruce) ⏳ pendiente
         │
         ▼
@@ -125,21 +131,34 @@ directo a las fuentes externas (evita CORS, controla caché y errores).
 | **Backend SNIT** | ✅ | Endpoints `GET /api/cantones` y `GET /api/cantones/:codigo` |
 | **Backend OIJ** | ✅ | Endpoints `/api/delitos`, `/api/delitos/por-canton`, `/api/delitos/tipos` |
 | **Frontend mapa** | ✅ | Mapa Leaflet con capa de cantones, panel de filtros, ficha de detalle |
-| **Migraciones SQL** | ✅ | `001_create_cantones.sql`, `002_create_delitos.sql` |
+| **Migraciones SQL** | ✅ | `001_create_cantones.sql`, `002_create_delitos.sql`, `003_create_accidentes.sql`, `004_create_infraestructura.sql` |
+| **Worker OSM/Overpass** | ✅ | `fetch_infraestructura.py` consulta Overpass API (hospitales, clínicas, comisarías) sin API key |
+| **Backend OSM/Overpass** | ✅ | Endpoints `/api/infraestructura`, `/api/infraestructura/por-canton` |
+| **Worker COSEVI** | ✅ | `fetch_accidentes.py` descarga el CSV oficial de accidentes con víctimas |
+| **Backend COSEVI** | ✅ | Endpoints `/api/accidentes`, `/api/accidentes/por-canton`, `/api/accidentes/tipos`, `/api/accidentes/clases` |
 
 ### Pendiente (tareas para el equipo)
 
 | Tarea | Responsable | Estado | Notas |
 |-------|-------------|--------|-------|
-| Módulo **COSEVI** (accidentes vial) | Persona B | 🔴 No iniciado | Verificar portal COSEVI, normalizar datos, crear worker + módulo NestJS |
-| Módulo **OSM/Overpass** (infraestructura) | Persona D | 🔴 No iniciado | Hospitales, clínicas, comisarías vía Overpass API, caché Redis |
 | Endpoint de cruce `/api/cantones/:id/panorama` | Compartido | 🔴 No iniciado | Combina las 4 fuentes + índice de cobertura |
 | Geometría de 5 cantones faltantes | — | 🟡 Parcial | Sarchí, Río Cuarto, Quepos, Monteverde, Puerto Jiménez (DTA 2022 sin geom) |
-| Capas adicionales en frontend | — | 🔴 No iniciado | Heatmap delitos, marcadores infraestructura, gráficos por cantón |
+| Capas adicionales en frontend | — | 🟡 Parcial | Marcadores de infraestructura ✅ listos; falta heatmap de delitos y gráficos por cantón |
 | Redis caché para Overpass/SNIT | — | 🔴 No iniciado | Evitar sobrecargar APIs públicas |
 | Despliegue | — | 🔴 No iniciado | Decidir plataforma (Vercel, Railway, etc.) |
 
 Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y contexto por módulo.
+
+---
+
+## Integrante responsable de cada fuente
+
+| # | Fuente | Responsable |
+|---|--------|-------------|
+| 1 | OIJ — Estadísticas Policiales | Roberto (RobertoUNA) |
+| 2 | COSEVI | Billy-Ugalde |
+| 3 | SNIT | Roberto (RobertoUNA) |
+| 4 | OpenStreetMap / Overpass | Brandon-Corrales |
 
 ---
 
@@ -152,6 +171,10 @@ Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y context
 | GET | `/api/delitos?canton&tipo&desde&hasta` | Delitos filtrados + resumen por cantón |
 | GET | `/api/delitos/por-canton` | Totales por cantón (para choropleth) |
 | GET | `/api/delitos/tipos` | Lista de tipos de delito disponibles |
+| GET | `/api/accidentes?canton&anio&clase&tipo` | Accidentes con víctimas (COSEVI) filtrados + resumen |
+| GET | `/api/accidentes/por-canton` | Totales de accidentes por cantón (choropleth) |
+| GET | `/api/infraestructura?canton&tipo` | Hospitales, clínicas y comisarías (OSM) filtrados + resumen |
+| GET | `/api/infraestructura/por-canton` | Conteo de infraestructura por cantón (índice de cobertura) |
 
 Las respuestas incluyen metadata: `X-Data-Source`, `X-Fetch-Date`, y campos
 `fuente` / `fecha_obtencion` en cada registro.
@@ -169,6 +192,7 @@ DB_USER=seguridad_vial
 DB_PASSWORD=tu_password
 DB_NAME=seguridad_vial_db
 PORT=3000
+OSM_CONTACT_EMAIL=tu_email@ejemplo.com
 ```
 
 > **Nunca** commitear el archivo `.env` con credenciales reales.
@@ -182,16 +206,32 @@ PORT=3000
    códigos DTA 2022 **sin geometría** (geom NULL). Pendiente completar cuando
    exista una capa oficial vigente.
 
-2. **COSEVI**: portal pendiente de verificar en vivo. Puede requerir scraping
-   estructurado si no hay descarga directa.
+2. **COSEVI**: resuelto sin scraping. El worker descarga el CSV oficial
+   "Consolidado de accidentes de tránsito con víctimas" publicado en
+   datosabiertos.csv.go.cr (ver `SPEC-cosevi.md`), sin necesitar la API
+   de Junar (que exige API key).
 
-3. **Overpass API**: rechazó consultas desde red local durante pruebas (406/timeout).
-   El módulo OSM queda para la siguiente fase.
+3. **Overpass API**: el rechazo (406/timeout) documentado en pruebas anteriores
+   ya no reproduce usando un `User-Agent` identificable
+   (`OSM_CONTACT_EMAIL` en `.env`, ver `SPEC-osm.md`). El worker consulta
+   `overpass-api.de` a nivel país en una sola petición (no por cantón) y cae
+   automáticamente al mirror `overpass.kumi.systems` si la instancia oficial
+   falla tras reintentar con backoff. Sigue pendiente el caché (Redis u otro)
+   delante del worker, y la cobertura depende de qué tan mapeada esté cada
+   zona en OSM.
 
-4. **Alias de nombres OIJ→SNIT**: se normalizan acentos y mayúsculas. Mapeos:
+4. **Límite de resultados en `/api/infraestructura`**: el `findAll` original
+   ordenaba por `tipo ASC` y truncaba con `.take(1000)`, patrón copiado de
+   delitos/accidentes. Como "clinica" (1124 registros) es alfabéticamente
+   primero y por sí sola supera el límite, la respuesta sin filtros nunca
+   devolvía hospitales ni comisarías. Corregido subiendo el límite a 5000:
+   a diferencia de delitos/accidentes (series temporales donde "los últimos
+   1000" tiene sentido), infraestructura es un snapshot nacional acotado.
+
+5. **Alias de nombres OIJ→SNIT**: se normalizan acentos y mayúsculas. Mapeos:
    `LEÓN CORTÉS` → `LEÓN CORTÉS CASTRO`, `VÁSQUEZ DE CORONADO` → `VÁZQUEZ DE CORONADO`.
 
-5. **Correlación ≠ causalidad**: la UI lo indica explícitamente.
+6. **Correlación ≠ causalidad**: la UI lo indica explícitamente.
 
 ---
 

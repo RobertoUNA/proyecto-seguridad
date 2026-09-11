@@ -9,6 +9,7 @@ import {
   fetchCantones,
   fetchDelitos,
   fetchDelitosPorCanton,
+  fetchInfraestructura,
   fetchTipos,
 } from './api'
 import type {
@@ -20,6 +21,7 @@ import type {
   FiltrosMapa,
   FuenteActiva,
   FuenteInfo,
+  InfraestructuraRow,
 } from './types'
 import MapView from './components/MapView'
 import FilterPanel from './components/FilterPanel'
@@ -67,6 +69,9 @@ export default function App() {
   const [detalle, setDetalle] = useState<DetalleFuente | null>(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mostrarInfraestructura, setMostrarInfraestructura] = useState(false)
+  const [infraestructura, setInfraestructura] = useState<InfraestructuraRow[]>([])
+  const [cargandoInfraestructura, setCargandoInfraestructura] = useState(false)
   const [fuenteMapa, setFuenteMapa] = useState<FuenteInfo>({
     fuente: 'OIJ/CKAN + SNIT/ArcGIS',
     fecha_obtencion: null,
@@ -209,6 +214,22 @@ export default function App() {
     [filtros, fuente],
   )
 
+  const alternarInfraestructura = useCallback(async () => {
+    const activar = !mostrarInfraestructura
+    setMostrarInfraestructura(activar)
+    if (!activar || infraestructura.length > 0) return
+
+    setCargandoInfraestructura(true)
+    try {
+      const datos = await fetchInfraestructura({})
+      setInfraestructura(datos.infraestructura)
+    } catch (causa) {
+      setError(causa instanceof Error ? causa.message : 'No se pudo cargar infraestructura')
+    } finally {
+      setCargandoInfraestructura(false)
+    }
+  }, [mostrarInfraestructura, infraestructura.length])
+
   const limpiarFiltros = useCallback(() => {
     setFiltros({})
     setSeleccion(null)
@@ -243,6 +264,9 @@ export default function App() {
           onChange={setFiltros}
           onAplicar={() => void aplicarFiltros()}
           onLimpiar={limpiarFiltros}
+          mostrarInfraestructura={mostrarInfraestructura}
+          cargandoInfraestructura={cargandoInfraestructura}
+          onToggleInfraestructura={() => void alternarInfraestructura()}
         />
 
         <div className="mapa-wrapper">
@@ -253,6 +277,8 @@ export default function App() {
               etiquetaMetrica={etiquetaMetrica}
               cantonSeleccionado={seleccion}
               onSeleccionar={(codigo, nombre) => void seleccionarCanton(codigo, nombre)}
+              infraestructura={infraestructura}
+              mostrarInfraestructura={mostrarInfraestructura}
             />
           ) : (
             <p className="nota">Cargando cantones…</p>
@@ -265,6 +291,16 @@ export default function App() {
               (intensidad relativa: {totalesPorCanton.features.length} cantones con datos)
             </span>
           </div>
+          {mostrarInfraestructura && (
+            <div className="leyenda leyenda-infraestructura">
+              <span className="swatch" style={{ background: '#ff5d5d' }} /> hospital
+              <span className="swatch" style={{ background: '#35c4ff' }} /> clínica
+              <span className="swatch" style={{ background: '#ffb020' }} /> comisaría
+              <span className="leyenda-nota">
+                Infraestructura: © OpenStreetMap contributors, vía Overpass API
+              </span>
+            </div>
+          )}
         </div>
 
         {seleccion && (
