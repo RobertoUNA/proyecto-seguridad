@@ -151,3 +151,40 @@ export interface FuenteInfo {
   fecha_obtencion: string | null
   descripcion: string
 }
+
+export interface PanoramaDelitos {
+  total: number
+  tipos_distintos: number
+  fuente: string
+  fecha_obtencion: string | null
+}
+
+export interface PanoramaAccidentes {
+  total: number
+  clases_distintas: number
+  fuente: string
+  fecha_obtencion: string | null
+}
+
+export interface PanoramaInfraestructura {
+  total: number
+  hospitales: number
+  clinicas: number
+  comisarias: number
+  fuente: string
+  fecha_obtencion: string | null
+}
+
+export interface PanoramaProperties {
+  codigo: string
+  nombre: string
+  poblacion: number | null
+  delitos: PanoramaDelitos
+  accidentes: PanoramaAccidentes
+  infraestructura: PanoramaInfraestructura
+  indice_cobertura: number
+  indice_cobertura_ratio: number
+  indice_cobertura_formula: string
+}
+
+export type PanoramaResponse = GeoFeature<PanoramaProperties>

@@ -1,4 +1,4 @@
-import type { DetalleFuente, FuenteInfo } from '../types'
+import type { DetalleFuente, FuenteInfo, PanoramaResponse } from '../types'
 
 interface Props {
   seleccion: { codigo: string; nombre: string }
@@ -7,6 +7,8 @@ interface Props {
   etiquetaMetrica: string
   cargando: boolean
   error: string | null
+  panorama: PanoramaResponse | null
+  cargandoPanorama: boolean
   onCerrar: () => void
 }
 
@@ -25,6 +27,8 @@ export default function CantonDetail({
   etiquetaMetrica,
   cargando,
   error,
+  panorama,
+  cargandoPanorama,
   onCerrar,
 }: Props) {
   const tipos = datos ? agruparPorTipo(datos) : []
@@ -76,6 +80,47 @@ export default function CantonDetail({
               `Datos obtenidos el ${new Date(datos.fecha_obtencion).toLocaleString('es-CR')}`}
           </p>
         </>
+      )}
+
+      <h3>Panorama del cantón (cruce de 4 fuentes)</h3>
+      {cargandoPanorama && <p className="nota">Cargando panorama…</p>}
+      {!cargandoPanorama && !panorama && (
+        <p className="nota">No se pudo cargar el panorama de este cantón.</p>
+      )}
+      {!cargandoPanorama && panorama && (
+        <div className="panorama">
+          <p className="panorama-indice">
+            Índice de vulnerabilidad:{' '}
+            <strong>{panorama.properties.indice_cobertura} / 100</strong>
+          </p>
+          <div className="barra-trazado">
+            <div
+              className="barra-llenado barra-llenado-riesgo"
+              style={{ width: `${panorama.properties.indice_cobertura}%` }}
+            />
+          </div>
+          <p className="nota">
+            Percentil frente a los demás cantones (100 = más vulnerable, 0 =
+            mejor cubierto). Ratio bruto: {panorama.properties.indice_cobertura_ratio}.
+          </p>
+          <ul className="panorama-resumen">
+            <li>
+              Delitos (OIJ): <strong>{panorama.properties.delitos.total.toLocaleString('es-CR')}</strong>
+            </li>
+            <li>
+              Accidentes (COSEVI):{' '}
+              <strong>{panorama.properties.accidentes.total.toLocaleString('es-CR')}</strong>
+            </li>
+            <li>
+              Infraestructura (OSM):{' '}
+              <strong>{panorama.properties.infraestructura.total.toLocaleString('es-CR')}</strong>
+              {' — '}
+              {panorama.properties.infraestructura.hospitales} hospitales,{' '}
+              {panorama.properties.infraestructura.clinicas} clínicas,{' '}
+              {panorama.properties.infraestructura.comisarias} comisarías
+            </li>
+          </ul>
+        </div>
       )}
 
       <p className="procedencia">
