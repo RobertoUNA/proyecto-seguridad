@@ -8,7 +8,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
-    "db:migrate": "psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/001_create_cantones.sql && psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/002_create_delitos.sql && psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/003_create_accidentes.sql"
+    "db:migrate": "psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/001_create_cantones.sql && psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/002_create_delitos.sql && psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/003_create_accidentes.sql && psql -U seguridad_vial -d seguridad_vial_db -f database/migrations/004_create_infraestructura.sql"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

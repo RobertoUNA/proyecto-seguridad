@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnitModule } from './modules/snit/snit.module';
 import { OijModule } from './modules/oij/oij.module';
 import { CoseviModule } from './modules/cosevi/cosevi.module';
+import { OsmModule } from './modules/osm/osm.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CoseviModule } from './modules/cosevi/cosevi.module';
     SnitModule,
     OijModule,
     CoseviModule,
+    OsmModule,
   ],
 })
 export class AppModule {}
