@@ -143,7 +143,7 @@ directo a las fuentes externas (evita CORS, controla caché y errores).
 |-------|-------------|--------|-------|
 | Endpoint de cruce `/api/cantones/:id/panorama` | Compartido | 🔴 No iniciado | Combina las 4 fuentes + índice de cobertura |
 | Geometría de 5 cantones faltantes | — | 🟡 Parcial | Sarchí, Río Cuarto, Quepos, Monteverde, Puerto Jiménez (DTA 2022 sin geom) |
-| Capas adicionales en frontend | — | 🔴 No iniciado | Heatmap delitos, marcadores infraestructura, gráficos por cantón |
+| Capas adicionales en frontend | — | 🟡 Parcial | Marcadores de infraestructura ✅ listos; falta heatmap de delitos y gráficos por cantón |
 | Redis caché para Overpass/SNIT | — | 🔴 No iniciado | Evitar sobrecargar APIs públicas |
 | Despliegue | — | 🔴 No iniciado | Decidir plataforma (Vercel, Railway, etc.) |
 
@@ -220,10 +220,18 @@ OSM_CONTACT_EMAIL=tu_email@ejemplo.com
    delante del worker, y la cobertura depende de qué tan mapeada esté cada
    zona en OSM.
 
-4. **Alias de nombres OIJ→SNIT**: se normalizan acentos y mayúsculas. Mapeos:
+4. **Límite de resultados en `/api/infraestructura`**: el `findAll` original
+   ordenaba por `tipo ASC` y truncaba con `.take(1000)`, patrón copiado de
+   delitos/accidentes. Como "clinica" (1124 registros) es alfabéticamente
+   primero y por sí sola supera el límite, la respuesta sin filtros nunca
+   devolvía hospitales ni comisarías. Corregido subiendo el límite a 5000:
+   a diferencia de delitos/accidentes (series temporales donde "los últimos
+   1000" tiene sentido), infraestructura es un snapshot nacional acotado.
+
+5. **Alias de nombres OIJ→SNIT**: se normalizan acentos y mayúsculas. Mapeos:
    `LEÓN CORTÉS` → `LEÓN CORTÉS CASTRO`, `VÁSQUEZ DE CORONADO` → `VÁZQUEZ DE CORONADO`.
 
-5. **Correlación ≠ causalidad**: la UI lo indica explícitamente.
+6. **Correlación ≠ causalidad**: la UI lo indica explícitamente.
 
 ---
 
