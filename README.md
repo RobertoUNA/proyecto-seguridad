@@ -151,6 +151,17 @@ Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y context
 
 ---
 
+## Integrante responsable de cada fuente
+
+| # | Fuente | Responsable |
+|---|--------|-------------|
+| 1 | OIJ — Estadísticas Policiales | Roberto (RobertoUNA) |
+| 2 | COSEVI | Billy-Ugalde |
+| 3 | SNIT | Roberto (RobertoUNA) |
+| 4 | OpenStreetMap / Overpass | Brandon-Corrales |
+
+---
+
 ## Endpoints de la API
 
 | Método | Ruta | Descripción |
