@@ -10,6 +10,7 @@ import {
   fetchDelitos,
   fetchDelitosPorCanton,
   fetchInfraestructura,
+  fetchPanorama,
   fetchTipos,
 } from './api'
 import type {
@@ -22,6 +23,7 @@ import type {
   FuenteActiva,
   FuenteInfo,
   InfraestructuraRow,
+  PanoramaResponse,
 } from './types'
 import MapView from './components/MapView'
 import FilterPanel from './components/FilterPanel'
@@ -67,6 +69,8 @@ export default function App() {
   })
   const [seleccion, setSeleccion] = useState<{ codigo: string; nombre: string } | null>(null)
   const [detalle, setDetalle] = useState<DetalleFuente | null>(null)
+  const [panorama, setPanorama] = useState<PanoramaResponse | null>(null)
+  const [cargandoPanorama, setCargandoPanorama] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mostrarInfraestructura, setMostrarInfraestructura] = useState(false)
@@ -138,6 +142,7 @@ export default function App() {
       setFiltros({})
       setSeleccion(null)
       setDetalle(null)
+      setPanorama(null)
       setError(null)
       setCargando(true)
       try {
@@ -171,6 +176,7 @@ export default function App() {
       } else {
         setSeleccion(null)
         setDetalle(null)
+        setPanorama(null)
       }
     } catch (causa) {
       setError(causa instanceof Error ? causa.message : 'Error al aplicar filtros')
@@ -185,6 +191,14 @@ export default function App() {
       setCargando(true)
       setError(null)
       setDetalle(null)
+      setPanorama(null)
+      setCargandoPanorama(true)
+      const panoramaPromise = fetchPanorama(codigo)
+        .catch((causa) => {
+          console.error('No se pudo cargar el panorama del cantón', causa)
+          return null
+        })
+        .finally(() => setCargandoPanorama(false))
       try {
         if (fuente === 'accidentes') {
           const datos = await fetchAccidentes({ ...filtros, canton: codigo })
@@ -210,6 +224,7 @@ export default function App() {
       } finally {
         setCargando(false)
       }
+      setPanorama(await panoramaPromise)
     },
     [filtros, fuente],
   )
@@ -234,6 +249,7 @@ export default function App() {
     setFiltros({})
     setSeleccion(null)
     setDetalle(null)
+    setPanorama(null)
     void actualizarCoropleta(fuente, {})
   }, [actualizarCoropleta, fuente])
 
@@ -311,9 +327,12 @@ export default function App() {
             etiquetaMetrica={etiquetaMetrica}
             cargando={cargando}
             error={error}
+            panorama={panorama}
+            cargandoPanorama={cargandoPanorama}
             onCerrar={() => {
               setSeleccion(null)
               setDetalle(null)
+              setPanorama(null)
             }}
           />
         )}

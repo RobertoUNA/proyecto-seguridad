@@ -8,6 +8,7 @@ import type {
   AccidentesResponse,
   InfraestructuraFiltros,
   InfraestructuraResponse,
+  PanoramaResponse,
 } from './types'
 
 const API_BASE = '/api'
@@ -97,4 +98,8 @@ export function fetchInfraestructura(
   if (filtros.tipo) params.set('tipo', filtros.tipo)
   const qs = params.toString()
   return http<InfraestructuraResponse>(qs ? `/infraestructura?${qs}` : '/infraestructura')
+}
+
+export function fetchPanorama(id: string): Promise<PanoramaResponse> {
+  return http<PanoramaResponse>(`/cantones/${encodeURIComponent(id)}/panorama`)
 }

@@ -11,6 +11,24 @@ emergencia de seguridad o un accidente vial?**
 
 ---
 
+## El problema y el objetivo
+
+En Costa Rica la información sobre criminalidad (OIJ), accidentabilidad vial
+(COSEVI), límites territoriales (SNIT) e infraestructura de atención
+(hospitales, clínicas, comisarías, vía OpenStreetMap) vive en fuentes
+públicas separadas, cada una con su propio formato y mecanismo de consumo.
+Por separado, cada fuente responde una pregunta parcial; ninguna por sí sola
+dice qué tan preparada está una zona específica ante una emergencia.
+
+El objetivo de este proyecto es integrar esas 4 fuentes OSINT en un mismo
+sistema, normalizarlas a un modelo común por cantón y cruzarlas
+geoespacialmente para responder: ¿qué tan preparada está una zona ante una
+emergencia de seguridad o un accidente vial? como por ejemplo, identificar
+cantones con alta incidencia delictiva o de accidentes que además tienen
+baja cobertura de infraestructura de atención cercana.
+
+---
+
 ## Quick Start
 
 ```bash
@@ -106,7 +124,7 @@ Fuentes OSINT (OIJ, COSEVI, SNIT, OSM/Overpass)
    - /api/delitos          (OIJ)  ✅
    - /api/accidentes       (COSEVI) ✅
    - /api/infraestructura  (OSM)   ✅
-   - /api/cantones/:id/panorama (cruce) ⏳ pendiente
+   - /api/cantones/:id/panorama (cruce) ✅
         │
         ▼
    Frontend React + TS (Leaflet)
@@ -136,12 +154,12 @@ directo a las fuentes externas (evita CORS, controla caché y errores).
 | **Backend OSM/Overpass** | ✅ | Endpoints `/api/infraestructura`, `/api/infraestructura/por-canton` |
 | **Worker COSEVI** | ✅ | `fetch_accidentes.py` descarga el CSV oficial de accidentes con víctimas |
 | **Backend COSEVI** | ✅ | Endpoints `/api/accidentes`, `/api/accidentes/por-canton`, `/api/accidentes/tipos`, `/api/accidentes/clases` |
+| **Endpoint de cruce** | ✅ | `GET /api/cantones/:id/panorama` combina las 4 fuentes + índice de cobertura |
 
 ### Pendiente (tareas para el equipo)
 
 | Tarea | Responsable | Estado | Notas |
 |-------|-------------|--------|-------|
-| Endpoint de cruce `/api/cantones/:id/panorama` | Compartido | 🔴 No iniciado | Combina las 4 fuentes + índice de cobertura |
 | Geometría de 5 cantones faltantes | — | 🟡 Parcial | Sarchí, Río Cuarto, Quepos, Monteverde, Puerto Jiménez (DTA 2022 sin geom) |
 | Capas adicionales en frontend | — | 🟡 Parcial | Marcadores de infraestructura ✅ listos; falta heatmap de delitos y gráficos por cantón |
 | Redis caché para Overpass/SNIT | — | 🔴 No iniciado | Evitar sobrecargar APIs públicas |
@@ -151,14 +169,33 @@ Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y context
 
 ---
 
-## Integrante responsable de cada fuente
+## Fuentes OSINT
 
-| # | Fuente | Responsable |
-|---|--------|-------------|
-| 1 | OIJ — Estadísticas Policiales | Roberto (RobertoUNA) |
-| 2 | COSEVI | Billy-Ugalde |
-| 3 | SNIT | Roberto (RobertoUNA) |
-| 4 | OpenStreetMap / Overpass | Brandon-Corrales |
+| # | Fuente | Qué aporta | Enlace oficial | Responsable |
+|---|--------|-----------|-----------------|-------------|
+| 1 | OIJ — Estadísticas Policiales | Frecuencia y tipo de delitos por cantón (2020-2025) | [datosabiertospj.poder-judicial.go.cr](https://datosabiertospj.poder-judicial.go.cr/dataset/estadisticas-policiales) | Roberto (RobertoUNA) |
+| 2 | COSEVI | Accidentes de tránsito con víctimas por cantón/distrito/año | [datosabiertos.csv.go.cr](https://datosabiertos.csv.go.cr/datasets/193472-consolidado-de-accidentes-de-transito-con-victimas.download/) | Billy-Ugalde |
+| 3 | SNIT | Límites cantonales oficiales (geometría) | [snitcr.go.cr/ico_servicios_ogc](https://www.snitcr.go.cr/ico_servicios_ogc) | Jose-Picado-Zamora |
+| 4 | OpenStreetMap / Overpass | Hospitales, clínicas y comisarías (infraestructura de atención) | [wiki.openstreetmap.org/wiki/Overpass_API](https://wiki.openstreetmap.org/wiki/Overpass_API) | Brandon-Corrales |
+
+**Cómo se consume cada fuente:**
+
+- **OIJ**: CSV descargado de un dataset CKAN (Azure Blob) por
+  `workers/oij/fetch_delitos.py`, normalizado y cargado a la tabla `delito`.
+- **COSEVI**: CSV oficial "Consolidado de accidentes de tránsito con
+  víctimas" descargado y validado por `workers/cosevi/fetch_accidentes.py`
+  → tabla `accidente` (detalle en `SPEC-cosevi.md`).
+- **SNIT**: ArcGIS FeatureServer (servicio tipo OGC) consultado por
+  `workers/snit/fetch_cantones.py`, guardado como geometría PostGIS en la
+  tabla `canton`.
+- **OpenStreetMap/Overpass**: Overpass QL vía Overpass API (JSON), consultado
+  a nivel país por `workers/osm/fetch_infraestructura.py` y cruzado por
+  PostGIS contra la geometría de cada cantón → tabla `infraestructura`
+  (detalle en `SPEC-osm.md`).
+
+Cada worker guarda `fuente` y `fecha_obtencion` en cada registro que inserta,
+y cada endpoint de la API expone esos mismos datos en la respuesta y en las
+cabeceras `X-Data-Source` / `X-Fetch-Date`
 
 ---
 
@@ -175,9 +212,28 @@ Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y context
 | GET | `/api/accidentes/por-canton` | Totales de accidentes por cantón (choropleth) |
 | GET | `/api/infraestructura?canton&tipo` | Hospitales, clínicas y comisarías (OSM) filtrados + resumen |
 | GET | `/api/infraestructura/por-canton` | Conteo de infraestructura por cantón (índice de cobertura) |
+| GET | `/api/cantones/:id/panorama` | Cruce de las 4 fuentes para un cantón (código o nombre): delitos, accidentes, infraestructura e `indice_cobertura` |
 
 Las respuestas incluyen metadata: `X-Data-Source`, `X-Fetch-Date`, y campos
 `fuente` / `fecha_obtencion` en cada registro.
+
+**Índice de cobertura** (`/api/cantones/:id/panorama`, campo
+`indice_cobertura`): percentil de **0 a 100** que ubica al cantón frente a
+todos los demás — **100 = el más vulnerable del país, 0 = el mejor
+cubierto**. Se calcula así:
+
+1. Ratio bruto por cantón: `(delitos + accidentes) / (1 + infraestructura)`
+   (el +1 evita dividir entre cero cuando no hay infraestructura registrada).
+   Este ratio no tiene techo, así que no es comparable por sí solo entre
+   cantones de distinto tamaño (un cantón grande como San José siempre da
+   un número alto en términos absolutos).
+2. Ese ratio se calcula para los ~80 cantones del país y se convierte en un
+   **percentil**: qué porcentaje de cantones tiene un ratio igual o menor
+   al de este cantón. El resultado (`indice_cobertura`) sí es comparable
+   entre cantones grandes y chicos.
+
+El ratio bruto sin normalizar queda disponible en `indice_cobertura_ratio`
+por transparencia de cómo se llegó al percentil.
 
 ---
 

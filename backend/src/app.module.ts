@@ -5,6 +5,7 @@ import { SnitModule } from './modules/snit/snit.module';
 import { OijModule } from './modules/oij/oij.module';
 import { CoseviModule } from './modules/cosevi/cosevi.module';
 import { OsmModule } from './modules/osm/osm.module';
+import { CruceModule } from './modules/cruce/cruce.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { OsmModule } from './modules/osm/osm.module';
     OijModule,
     CoseviModule,
     OsmModule,
+    CruceModule,
   ],
 })
 export class AppModule {}

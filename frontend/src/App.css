@@ -307,6 +307,31 @@ body {
   border-radius: 6px;
 }
 
+.panorama {
+  margin-top: 0.5rem;
+  padding: 0.7rem;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+}
+
+.panorama-indice {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.barra-llenado-riesgo {
+  background: linear-gradient(90deg, #2ee6a6, #ffb020, var(--peligro));
+}
+
+.panorama-resumen {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
 .procedencia {
   margin-top: 1rem;
   font-size: 0.78rem;
