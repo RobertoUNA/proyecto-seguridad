@@ -60,7 +60,11 @@ export class OsmService {
       .orderBy('i.tipo', 'ASC')
       .addOrderBy('i.nombre', 'ASC');
     await this.aplicarFiltros(query, filtros);
-    const registros = await query.take(1000).getMany();
+    // A diferencia de delitos/accidentes (series temporales donde 1000 es
+    // "los más recientes"), infraestructura es un snapshot nacional acotado.
+    // Ordenar por tipo ASC + take(1000) dejaba fuera comisaria/hospital
+    // porque "clinica" (1124 registros) agota el límite alfabéticamente.
+    const registros = await query.take(5000).getMany();
 
     return {
       infraestructura: registros,

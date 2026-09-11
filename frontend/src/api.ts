@@ -6,6 +6,8 @@ import type {
   AccidenteFiltros,
   AccidenteTotalesCollection,
   AccidentesResponse,
+  InfraestructuraFiltros,
+  InfraestructuraResponse,
 } from './types'
 
 const API_BASE = '/api'
@@ -85,4 +87,14 @@ export function fetchAccidentesPorCanton(
   return http<AccidenteTotalesCollection>(
     qs ? `/accidentes/por-canton?${qs}` : '/accidentes/por-canton',
   )
+}
+
+export function fetchInfraestructura(
+  filtros: InfraestructuraFiltros,
+): Promise<InfraestructuraResponse> {
+  const params = new URLSearchParams()
+  if (filtros.canton) params.set('canton', filtros.canton)
+  if (filtros.tipo) params.set('tipo', filtros.tipo)
+  const qs = params.toString()
+  return http<InfraestructuraResponse>(qs ? `/infraestructura?${qs}` : '/infraestructura')
 }

@@ -102,6 +102,34 @@ export interface AccidentesResponse {
   fecha_obtencion: string | null
 }
 
+export interface InfraestructuraFiltros {
+  canton?: string
+  tipo?: string
+}
+
+export interface InfraestructuraRow {
+  id: number
+  osm_type: string
+  osm_id: string
+  canton_id: number | null
+  provincia: string | null
+  distrito: string | null
+  nombre: string | null
+  tipo: string
+  lat: number
+  lon: number
+  fuente: string
+  fecha_obtencion: string
+}
+
+export interface InfraestructuraResponse {
+  infraestructura: InfraestructuraRow[]
+  resumen: { registro_cantidad: number }
+  fuente: string
+  descripcion_fuente: string
+  fecha_obtencion: string | null
+}
+
 export interface CapaMapaProperties {
   codigo: string | null
   nombre: string

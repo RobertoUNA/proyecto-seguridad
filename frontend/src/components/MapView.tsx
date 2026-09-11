@@ -1,6 +1,6 @@
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Popup } from 'react-leaflet'
 import type { Layer, PathOptions } from 'leaflet'
-import type { CantonCollection, CapaMapaCollection } from '../types'
+import type { CantonCollection, CapaMapaCollection, InfraestructuraRow } from '../types'
 
 interface Props {
   cantones: CantonCollection
@@ -8,6 +8,20 @@ interface Props {
   etiquetaMetrica: string
   cantonSeleccionado: { codigo: string; nombre: string } | null
   onSeleccionar: (codigo: string, nombre: string) => void
+  infraestructura: InfraestructuraRow[]
+  mostrarInfraestructura: boolean
+}
+
+const colorPorTipoInfraestructura: Record<string, string> = {
+  hospital: '#ff5d5d',
+  clinica: '#35c4ff',
+  comisaria: '#ffb020',
+}
+
+const etiquetaTipoInfraestructura: Record<string, string> = {
+  hospital: 'Hospital',
+  clinica: 'Clínica',
+  comisaria: 'Comisaría',
 }
 
 function colorPorIntensidad(valor: number, maximo: number): string {
@@ -26,6 +40,8 @@ export default function MapView({
   etiquetaMetrica,
   cantonSeleccionado,
   onSeleccionar,
+  infraestructura,
+  mostrarInfraestructura,
 }: Props) {
   const maximo = Math.max(...totalesPorCanton.features.map((f) => f.properties.total), 1)
   const colorDeCanton = (codigo: string): string => {
@@ -81,6 +97,26 @@ export default function MapView({
         style={estiloCanton}
         onEachFeature={enCadaFeature}
       />
+      {mostrarInfraestructura &&
+        infraestructura.map((item) => (
+          <CircleMarker
+            key={`${item.osm_type}-${item.osm_id}`}
+            center={[item.lat, item.lon]}
+            radius={5}
+            pathOptions={{
+              color: '#1c2742',
+              weight: 1,
+              fillColor: colorPorTipoInfraestructura[item.tipo] ?? '#9fb0d3',
+              fillOpacity: 0.9,
+            }}
+          >
+            <Popup>
+              <strong>{item.nombre ?? 'Sin nombre'}</strong>
+              <br />
+              {etiquetaTipoInfraestructura[item.tipo] ?? item.tipo}
+            </Popup>
+          </CircleMarker>
+        ))}
     </MapContainer>
   )
 }

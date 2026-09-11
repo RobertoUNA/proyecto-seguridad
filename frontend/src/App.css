@@ -140,6 +140,22 @@ body {
   border-color: transparent;
 }
 
+.campo-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.campo-check input {
+  width: auto;
+}
+
+.campo-check span {
+  margin-bottom: 0;
+  color: var(--texto);
+  font-size: 0.85rem;
+}
+
 .botones {
   display: flex;
   gap: 0.5rem;
@@ -227,6 +243,10 @@ body {
   margin-left: 0.5rem;
   border-left: 1px solid var(--borde);
   padding-left: 0.5rem;
+}
+
+.leyenda-infraestructura {
+  bottom: 3.2rem;
 }
 
 /* ---- detalle ---- */
