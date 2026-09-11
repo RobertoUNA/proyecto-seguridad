@@ -19,7 +19,7 @@ git clone https://github.com/RobertoUNA/proyecto-seguridad.git
 cd proyecto-seguridad
 
 # 2. Base de datos (PostgreSQL + PostGIS)
-psql -U postgres -c "CREATE ROLE seguridad_vial LOGIN PASSWORD 'S3gur!d@dV1al_2026' CREATEDB;"
+psql -U postgres -c "CREATE ROLE seguridad_vial LOGIN PASSWORD 'TU_PASSWORD_AQUI' CREATEDB;"
 psql -U postgres -c "CREATE DATABASE seguridad_vial_db OWNER seguridad_vial;"
 psql -U postgres -d seguridad_vial_db -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
@@ -134,12 +134,13 @@ directo a las fuentes externas (evita CORS, controla caché y errores).
 | **Migraciones SQL** | ✅ | `001_create_cantones.sql`, `002_create_delitos.sql`, `003_create_accidentes.sql`, `004_create_infraestructura.sql` |
 | **Worker OSM/Overpass** | ✅ | `fetch_infraestructura.py` consulta Overpass API (hospitales, clínicas, comisarías) sin API key |
 | **Backend OSM/Overpass** | ✅ | Endpoints `/api/infraestructura`, `/api/infraestructura/por-canton` |
+| **Worker COSEVI** | ✅ | `fetch_accidentes.py` descarga el CSV oficial de accidentes con víctimas |
+| **Backend COSEVI** | ✅ | Endpoints `/api/accidentes`, `/api/accidentes/por-canton`, `/api/accidentes/tipos`, `/api/accidentes/clases` |
 
 ### Pendiente (tareas para el equipo)
 
 | Tarea | Responsable | Estado | Notas |
 |-------|-------------|--------|-------|
-| Módulo **COSEVI** (accidentes vial) | Persona B | 🔴 No iniciado | Verificar portal COSEVI, normalizar datos, crear worker + módulo NestJS |
 | Endpoint de cruce `/api/cantones/:id/panorama` | Compartido | 🔴 No iniciado | Combina las 4 fuentes + índice de cobertura |
 | Geometría de 5 cantones faltantes | — | 🟡 Parcial | Sarchí, Río Cuarto, Quepos, Monteverde, Puerto Jiménez (DTA 2022 sin geom) |
 | Capas adicionales en frontend | — | 🔴 No iniciado | Heatmap delitos, marcadores infraestructura, gráficos por cantón |
@@ -194,8 +195,10 @@ OSM_CONTACT_EMAIL=tu_email@ejemplo.com
    códigos DTA 2022 **sin geometría** (geom NULL). Pendiente completar cuando
    exista una capa oficial vigente.
 
-2. **COSEVI**: portal pendiente de verificar en vivo. Puede requerir scraping
-   estructurado si no hay descarga directa.
+2. **COSEVI**: resuelto sin scraping. El worker descarga el CSV oficial
+   "Consolidado de accidentes de tránsito con víctimas" publicado en
+   datosabiertos.csv.go.cr (ver `SPEC-cosevi.md`), sin necesitar la API
+   de Junar (que exige API key).
 
 3. **Overpass API**: el rechazo (406/timeout) documentado en pruebas anteriores
    ya no reproduce usando un `User-Agent` identificable
