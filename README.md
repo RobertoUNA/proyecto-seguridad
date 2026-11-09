@@ -8,6 +8,7 @@ emergencia de seguridad o un accidente vial?**
 - Valor central: la relación geoespacial entre criminalidad, accidentabilidad e
   infraestructura de atención (hospitales, comisarías, vías).
 - Solo datos **agregados por cantón/distrito**, nunca perfiles individuales.
+- 🛡️ **Plan y Asignación del Proyecto Final (SSDLC & DevSecOps):** ver [`PLAN-PROYECTO-FINAL-SSDLC.md`](./PLAN-PROYECTO-FINAL-SSDLC.md) (tareas de Roberto, Billy, Jose y Brandon).
 
 ---
 
