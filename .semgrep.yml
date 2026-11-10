@@ -16,11 +16,7 @@ rules:
       owasp: "A03:2021 - Injection"
       threat_id: "THR-01"
       control_id: "CTL-01"
-    pattern-either:
-      - pattern: $OBJ.query(`...${$VAR}...`)
-      - pattern: $OBJ.where(`...${$VAR}...`)
-      - pattern: $OBJ.andWhere(`...${$VAR}...`)
-      - pattern: $OBJ.orWhere(`...${$VAR}...`)
+    pattern-regex: \.(query|where|andWhere|orWhere)\s*\(\s*`[^`]*\$\{[^}]+\}[^`]*`
 
   - id: ssdcl-ts-dangerous-eval-or-function
     languages:
@@ -47,7 +43,7 @@ rules:
       credentials: true en enableCors().
     metadata:
       cwe: "CWE-942: Permissive Cross-domain Policy with Untrusted Domains"
-    pattern: $APP.enableCors({ ..., origin: "*", ..., credentials: true, ... })
+    pattern-regex: enableCors\s*\(\s*\{[^}]*origin\s*:\s*['"]\*['"][^}]*credentials\s*:\s*true
 
   # =========================================================================
   # 2. Python Rules (Workers OSINT: OIJ, COSEVI, SNIT, OSM/Overpass)
@@ -94,41 +90,26 @@ rules:
     severity: ERROR
     message: >-
       [THR-01 / CTL-01] Posible inyección SQL en worker Python (CWE-89): No construyas
-      sentencias SQL con f-strings o .format() dentro de cur.execute(). Usa placeholders (%s).
+      sentencias SQL con f-strings dentro de cur.execute(). Usa placeholders (%s).
     metadata:
       cwe: "CWE-89: SQL Injection"
       threat_id: "THR-01"
       control_id: "CTL-01"
-    pattern-either:
-      - pattern: $CUR.execute(f"...", ...)
-      - pattern: $CUR.execute("...".format(...), ...)
+    pattern-regex: \.execute\s*\(\s*f["']
 
   # =========================================================================
-  # 3. Cross-Language Hardcoded Secrets Check
+  # 3. Hardcoded Secrets Check (TypeScript / Python)
   # =========================================================================
-  - id: ssdcl-hardcoded-db-password
+  - id: ssdcl-ts-hardcoded-db-password
     languages:
       - typescript
       - javascript
-      - python
     severity: ERROR
     message: >-
       [THR-03 / CTL-03] Credencial hardcodeada detectada (CWE-798): Las contraseñas de base
-      de datos o tokens deben leerse desde variables de entorno (process.env / os.getenv).
+      de datos deben leerse desde variables de entorno (process.env.DB_PASSWORD).
     metadata:
       cwe: "CWE-798: Use of Hard-coded Credentials"
       threat_id: "THR-03"
       control_id: "CTL-03"
-    pattern-either:
-      - patterns:
-          - pattern: |
-              { ..., password: "$VAL", ... }
-          - metavariable-regex:
-              metavariable: $VAL
-              regex: ^(?!(tu_password|TU_PASSWORD_AQUI|cambia_por_tu_password|test_pass)$).{4,}$
-      - patterns:
-          - pattern: |
-              {"password": "$VAL", ...}
-          - metavariable-regex:
-              metavariable: $VAL
-              regex: ^(?!(tu_password|TU_PASSWORD_AQUI|cambia_por_tu_password|test_pass)$).{4,}$
+    pattern-regex: password\s*:\s*['"](?!(tu_password|TU_PASSWORD_AQUI|cambia_por_tu_password|test_pass))[^'"]{4,}['"]

@@ -16,10 +16,13 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   deploy-and-verify:
     name: "6.5 / 6.6 Despliegue, Smoke Tests y Recuperación Automática"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgis:
         image: postgis/postgis:16-3.4
