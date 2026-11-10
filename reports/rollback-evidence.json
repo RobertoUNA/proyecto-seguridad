@@ -1,0 +1,9 @@
+﻿{
+    "event":  "DEPLOYMENT_ROLLBACK_COMPLETED",
+    "executed_at":  "2026-11-10T21:35:25.5881179Z",
+    "reason":  "Simulacion controlada de fallo en version desplegada (Demostracion Item 6.6)",
+    "restored_release_id":  "v1.0.0-rc0-baseline",
+    "restored_commit_sha":  "4844d2a",
+    "restored_backend_image":  "docker.io/robertouna/proyecto-seguridad-backend@sha256:9e06aae000000000000000000000000000000000000000000000000000000001",
+    "post_rollback_smoke":  "APPROVED (8/8 checks passed)"
+}

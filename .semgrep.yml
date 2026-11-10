@@ -1,0 +1,134 @@
+rules:
+  # =========================================================================
+  # 1. TypeScript / NestJS Rules (Backend & Frontend)
+  # =========================================================================
+  - id: ssdcl-ts-raw-sql-interpolation
+    languages:
+      - typescript
+      - javascript
+    severity: ERROR
+    message: >-
+      [THR-01 / CTL-01] Posible inyección SQL (CWE-89): No utilices template literals
+      con interpolación (${...}) dentro de consultas SQL o QueryBuilder (.query, .where,
+      .andWhere, .orWhere). Usa parámetros enlazados (:param, { param }).
+    metadata:
+      cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"
+      owasp: "A03:2021 - Injection"
+      threat_id: "THR-01"
+      control_id: "CTL-01"
+    pattern-either:
+      - pattern: $OBJ.query(`...${$VAR}...`)
+      - pattern: $OBJ.where(`...${$VAR}...`)
+      - pattern: $OBJ.andWhere(`...${$VAR}...`)
+      - pattern: $OBJ.orWhere(`...${$VAR}...`)
+
+  - id: ssdcl-ts-dangerous-eval-or-function
+    languages:
+      - typescript
+      - javascript
+    severity: ERROR
+    message: >-
+      [CTL-01] Ejecución dinámica de código insegura (CWE-95): Se prohíbe el uso de
+      eval() o new Function() en el backend y frontend.
+    metadata:
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection')"
+      owasp: "A03:2021 - Injection"
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: ssdcl-ts-cors-wildcard-credentials
+    languages:
+      - typescript
+      - javascript
+    severity: WARNING
+    message: >-
+      Configuración insegura de CORS (CWE-942): No combines origin: '*' con
+      credentials: true en enableCors().
+    metadata:
+      cwe: "CWE-942: Permissive Cross-domain Policy with Untrusted Domains"
+    pattern: $APP.enableCors({ ..., origin: "*", ..., credentials: true, ... })
+
+  # =========================================================================
+  # 2. Python Rules (Workers OSINT: OIJ, COSEVI, SNIT, OSM/Overpass)
+  # =========================================================================
+  - id: ssdcl-py-requests-without-timeout
+    languages:
+      - python
+    severity: ERROR
+    message: >-
+      [THR-02 / CTL-02] Llamada HTTP a fuente OSINT externa sin timeout explícito (CWE-400):
+      Toda llamada requests.get() o requests.post() debe especificar timeout=... para evitar
+      bloqueos indefinidos del worker.
+    metadata:
+      cwe: "CWE-400: Uncontrolled Resource Consumption"
+      threat_id: "THR-02"
+      control_id: "CTL-02"
+    pattern-either:
+      - patterns:
+          - pattern: requests.get(...)
+          - pattern-not: requests.get(..., timeout=..., ...)
+      - patterns:
+          - pattern: requests.post(...)
+          - pattern-not: requests.post(..., timeout=..., ...)
+
+  - id: ssdcl-py-insecure-ssl-verify-false
+    languages:
+      - python
+    severity: ERROR
+    message: >-
+      [THR-04 / CTL-04] Verificación de certificado TLS desactivada (CWE-295):
+      No se permite usar verify=False al consultar fuentes OSINT externas.
+    metadata:
+      cwe: "CWE-295: Improper Certificate Validation"
+      threat_id: "THR-04"
+      control_id: "CTL-04"
+    pattern-either:
+      - pattern: requests.get(..., verify=False, ...)
+      - pattern: requests.post(..., verify=False, ...)
+      - pattern: requests.request(..., verify=False, ...)
+
+  - id: ssdcl-py-raw-sql-format-string
+    languages:
+      - python
+    severity: ERROR
+    message: >-
+      [THR-01 / CTL-01] Posible inyección SQL en worker Python (CWE-89): No construyas
+      sentencias SQL con f-strings o .format() dentro de cur.execute(). Usa placeholders (%s).
+    metadata:
+      cwe: "CWE-89: SQL Injection"
+      threat_id: "THR-01"
+      control_id: "CTL-01"
+    pattern-either:
+      - pattern: $CUR.execute(f"...", ...)
+      - pattern: $CUR.execute("...".format(...), ...)
+
+  # =========================================================================
+  # 3. Cross-Language Hardcoded Secrets Check
+  # =========================================================================
+  - id: ssdcl-hardcoded-db-password
+    languages:
+      - typescript
+      - javascript
+      - python
+    severity: ERROR
+    message: >-
+      [THR-03 / CTL-03] Credencial hardcodeada detectada (CWE-798): Las contraseñas de base
+      de datos o tokens deben leerse desde variables de entorno (process.env / os.getenv).
+    metadata:
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      threat_id: "THR-03"
+      control_id: "CTL-03"
+    pattern-either:
+      - patterns:
+          - pattern: |
+              { ..., password: "$VAL", ... }
+          - metavariable-regex:
+              metavariable: $VAL
+              regex: ^(?!(tu_password|TU_PASSWORD_AQUI|cambia_por_tu_password|test_pass)$).{4,}$
+      - patterns:
+          - pattern: |
+              {"password": "$VAL", ...}
+          - metavariable-regex:
+              metavariable: $VAL
+              regex: ^(?!(tu_password|TU_PASSWORD_AQUI|cambia_por_tu_password|test_pass)$).{4,}$

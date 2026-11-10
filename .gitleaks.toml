@@ -1,0 +1,39 @@
+title = "Configuración Gitleaks — Observatorio de Seguridad Vial y Urbana (SSDLC)"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "postgres-connection-uri-with-password"
+description = "[THR-03 / CTL-03] URI de conexión PostgreSQL con contraseña embebida"
+regex = '''(?i)postgres(?:ql)?://[a-z0-9_.-]+:([^@\s"'`]{4,})@[a-z0-9_.-]+'''
+secretGroup = 1
+tags = ["database", "postgres", "secret", "THR-03"]
+
+[[rules]]
+id = "hardcoded-db-password-env-assignment"
+description = "[THR-03 / CTL-03] Asignación directa de DB_PASSWORD con valor no-placeholder"
+regex = '''(?m)^DB_PASSWORD\s*=\s*["']?([A-Za-z0-9!@#$%^&*()_+\-=\[\]{};:,.<>?]{6,})["']?$'''
+secretGroup = 1
+tags = ["database", "env", "THR-03"]
+  [rules.allowlist]
+  regexTarget = "secret"
+  regexes = [
+    '''^(cambia_por_tu_password|tu_password|TU_PASSWORD_AQUI|test_pass|postgres_test_pass)$'''
+  ]
+
+[allowlist]
+description = "Exclusión de dependencias instaladas (node_modules/dist), .env local ignorado por git y plantillas .env.example"
+paths = [
+  '''(^|[\\/])node_modules([\\/]|$)''',
+  '''(^|[\\/])dist([\\/]|$)''',
+  '''(^|[\\/])backend[\\/]\.env$''',
+  '''(^|[\\/])backend[\\/]\.env\.example$''',
+  '''(^|[\\/])docs[\\/]ssdcl[\\/]02-analisis-estatico-secretos\.md$'''
+]
+stopwords = [
+  "TU_PASSWORD_AQUI",
+  "tu_password",
+  "cambia_por_tu_password",
+  "tu_email@ejemplo.com"
+]

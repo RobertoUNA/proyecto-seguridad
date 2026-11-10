@@ -6,6 +6,7 @@ import { OijModule } from './modules/oij/oij.module';
 import { CoseviModule } from './modules/cosevi/cosevi.module';
 import { OsmModule } from './modules/osm/osm.module';
 import { CruceModule } from './modules/cruce/cruce.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CruceModule } from './modules/cruce/cruce.module';
     CoseviModule,
     OsmModule,
     CruceModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

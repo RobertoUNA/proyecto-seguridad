@@ -1,0 +1,66 @@
+﻿{
+    "base_url":  "http://localhost:3000",
+    "executed_at":  "2026-11-10T21:33:53.9594572Z",
+    "total_checks":  8,
+    "passed":  8,
+    "failed":  0,
+    "status":  "APPROVED",
+    "checks":  [
+                   {
+                       "check":  "1. Health Check (/api/health)",
+                       "passed":  true,
+                       "status_code":  200,
+                       "detail":  "DB=up, PostGIS=3.6 USE_GEOS=1 USE_PROJ=1 USE_STATS=1",
+                       "timestamp":  "2026-11-10T21:33:51.7997802Z"
+                   },
+                   {
+                       "check":  "2. SNIT Cantones (/api/cantones)",
+                       "passed":  true,
+                       "status_code":  200,
+                       "detail":  "FeatureCollection con 85 cantones",
+                       "timestamp":  "2026-11-10T21:33:52.7512577Z"
+                   },
+                   {
+                       "check":  "3. OIJ Tipos de Delito (/api/delitos/tipos)",
+                       "passed":  true,
+                       "status_code":  200,
+                       "detail":  "Tipos disponibles=",
+                       "timestamp":  "2026-11-10T21:33:52.7786381Z"
+                   },
+                   {
+                       "check":  "4. COSEVI Tipos de Accidente (/api/accidentes/tipos)",
+                       "passed":  true,
+                       "status_code":  200,
+                       "detail":  "Tipos disponibles=",
+                       "timestamp":  "2026-11-10T21:33:52.8002762Z"
+                   },
+                   {
+                       "check":  "5. OSM Infraestructura (/api/infraestructura/por-canton)",
+                       "passed":  true,
+                       "status_code":  200,
+                       "detail":  "FeatureCollection recibida correctamente",
+                       "timestamp":  "2026-11-10T21:33:53.7152561Z"
+                   },
+                   {
+                       "check":  "6. Cruce 4 Fuentes (/api/cantones/1001/panorama)",
+                       "passed":  true,
+                       "status_code":  200,
+                       "detail":  "CantÃ³n=San José, indice_cobertura=89",
+                       "timestamp":  "2026-11-10T21:33:53.9167202Z"
+                   },
+                   {
+                       "check":  "7. Rechazo CantÃ³n Inexistente (404 esperado)",
+                       "passed":  true,
+                       "status_code":  404,
+                       "detail":  "Rechazo controlado verificado (HTTP 404)",
+                       "timestamp":  "2026-11-10T21:33:53.9316988Z"
+                   },
+                   {
+                       "check":  "8. Rechazo Filtro Fecha InvÃ¡lida (400 esperado)",
+                       "passed":  true,
+                       "status_code":  400,
+                       "detail":  "ValidaciÃ³n de entrada activa (HTTP 400)",
+                       "timestamp":  "2026-11-10T21:33:53.9360317Z"
+                   }
+               ]
+}

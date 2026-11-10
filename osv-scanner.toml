@@ -1,0 +1,174 @@
+# Configuración de Excepciones Temporales de SCA (OSV-Scanner) — Ítems 3.2, 5.2, 5.6 y 7.5
+# Toda excepción registrada aquí DEBE estar respaldada en docs/ssdcl/REGISTRO-HALLAZGOS.md
+# con evidencia, justificación técnica, responsable, aprobador humano y fecha de vencimiento.
+
+# ---------------------------------------------------------------------------
+# EXC-01: Dependencias transitivas de @nestjs/platform-express v10 (multer, file-type, body-parser, qs, lodash, uuid)
+# Justificación: La API es 100% de solo lectura (exclusivamente endpoints GET sin carga de archivos multipart/multer
+# ni cuerpos comprimidos POST). Actualizar a @nestjs/core v12 implica cambios mayores fuera del sprint actual.
+# Responsable: RobertoUNA | Revisor: Billy-Ugalde | Vencimiento: 2026-12-15
+# ---------------------------------------------------------------------------
+[[IgnoredVulns]]
+id = "GHSA-36xv-jgw5-4q75"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: @nestjs/core 10.4.22 - API expone únicamente endpoints GET JSON de solo lectura"
+
+[[IgnoredVulns]]
+id = "GHSA-27r3-jxmh-p828"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: body-parser transitivo en NestJS 10 - No se reciben cuerpos POST/PUT en la API pública"
+
+[[IgnoredVulns]]
+id = "GHSA-v422-hmwv-36x6"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: body-parser transitivo en NestJS 10 - Límite por defecto no modificado"
+
+[[IgnoredVulns]]
+id = "GHSA-5v7r-6r5c-r473"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: file-type transitivo - No se procesan archivos multimedia/ASF en el backend"
+
+[[IgnoredVulns]]
+id = "GHSA-j47w-4g3g-c36v"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: file-type transitivo - No se procesan archivos ZIP/OOXML en el backend"
+
+[[IgnoredVulns]]
+id = "GHSA-r5fr-rjxr-66jc"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: lodash transitivo en @nestjs/config - No se utiliza _.template en ningún módulo"
+
+[[IgnoredVulns]]
+id = "GHSA-xxjr-mmjv-4gpg"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: lodash transitivo en @nestjs/config - Solo lectura de variables de entorno al inicio"
+
+[[IgnoredVulns]]
+id = "GHSA-3p4h-7m6x-2hcm"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-535w-7cp7-47q4"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-5528-5vmv-3xc2"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-72gw-mp4g-v24j"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-q7qp-rjg7-q26m"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-qvfw-j98x-7q72"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-v52c-386h-88mc"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-wc9g-mqfw-jrwm"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-xf7r-hgr6-v32p"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: multer transitivo en @nestjs/platform-express - El sistema no tiene subida de archivos"
+
+[[IgnoredVulns]]
+id = "GHSA-4mjr-xmp4-gh2g"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: qs transitivo en Express 4 - Mitigado con validación de query params en controladores"
+
+[[IgnoredVulns]]
+id = "GHSA-6pq8-jhm2-2vcw"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: qs transitivo en Express 4 - No se utiliza qs.stringify con arrayFormat comma"
+
+[[IgnoredVulns]]
+id = "GHSA-q8mj-m7cp-5q26"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: qs transitivo en Express 4 - No se utiliza qs.stringify con arrayFormat comma"
+
+[[IgnoredVulns]]
+id = "GHSA-x5fp-wj9c-mxmx"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: qs transitivo en Express 4 - Consultas acotadas por filtros simples"
+
+[[IgnoredVulns]]
+id = "GHSA-w5hq-g745-h8pq"
+ignoreUntil = 2026-12-15
+reason = "EXC-01: uuid transitivo en @nestjs/typeorm - Las entidades usan SERIAL/BIGINT, no UUID v3/v5/v6 con buf"
+
+# ---------------------------------------------------------------------------
+# EXC-02: Dependencias exclusivas de compilación/desarrollo (@nestjs/cli, glob, minimatch, picomatch, ajv, deepmerge, tmp, webpack)
+# Justificación: Solo se ejecutan durante `nest build` sobre código local confiable y no forman parte del runtime en producción.
+# Responsable: RobertoUNA | Revisor: Billy-Ugalde | Vencimiento: 2026-12-15
+# ---------------------------------------------------------------------------
+[[IgnoredVulns]]
+id = "GHSA-2g4f-4pwh-qvx6"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: ajv (dev) en @nestjs/cli - Solo tiempo de compilación"
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: deepmerge (dev) en @nestjs/cli - Solo tiempo de compilación"
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: glob en @nestjs/cli y typeorm - Patrones de entidades estáticos y locales"
+
+[[IgnoredVulns]]
+id = "GHSA-5j98-mcp5-4vw2"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: glob CLI (dev) - No se invoca glob CLI con flag -c/--cmd"
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: minimatch transitivo - Patrones de archivos internos no controlados por el usuario"
+
+[[IgnoredVulns]]
+id = "GHSA-3v7f-55p6-f55p"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: picomatch (dev) en @nestjs/cli - Solo tiempo de compilación"
+
+[[IgnoredVulns]]
+id = "GHSA-c2c7-rcm5-vvqj"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: picomatch (dev) en @nestjs/cli - Solo tiempo de compilación"
+
+[[IgnoredVulns]]
+id = "GHSA-52f5-9888-hmc6"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: tmp (dev) en @nestjs/cli schematics - No se incluye en runtime"
+
+[[IgnoredVulns]]
+id = "GHSA-ph9p-34f9-6g65"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: tmp (dev) en @nestjs/cli schematics - No se incluye en runtime"
+
+[[IgnoredVulns]]
+id = "GHSA-38r7-794h-5758"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: webpack (dev) en @nestjs/cli - buildHttp no habilitado"
+
+[[IgnoredVulns]]
+id = "GHSA-8fgc-7cc6-rx7x"
+ignoreUntil = 2026-12-15
+reason = "EXC-02: webpack (dev) en @nestjs/cli - buildHttp no habilitado"

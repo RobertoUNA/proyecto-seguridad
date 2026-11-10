@@ -1,0 +1,102 @@
+name: Deploy & Post-Deployment Verification + Rollback (Etapa 6)
+
+on:
+  workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: "Simular un fallo post-despliegue para demostrar la reversión automática (Ítem 6.6)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+# Ítem 3.5 / 6.3: Permisos mínimos para el token
+permissions:
+  contents: read
+
+jobs:
+  deploy-and-verify:
+    name: "6.5 / 6.6 Despliegue, Smoke Tests y Recuperación Automática"
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: seguridad_vial
+          POSTGRES_PASSWORD: deploy_verify_pass
+          POSTGRES_DB: seguridad_vial_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: seguridad_vial
+      DB_PASSWORD: deploy_verify_pass
+      DB_NAME: seguridad_vial_db
+      PORT: "3000"
+      COMMIT_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+
+      - name: Preparar base de datos del ambiente y cargar semilla de prueba
+        env:
+          PGPASSWORD: deploy_verify_pass
+        run: |
+          psql -h localhost -U seguridad_vial -d seguridad_vial_db -f backend/database/migrations/001_create_cantones.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_db -f backend/database/migrations/002_create_delitos.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_db -f backend/database/migrations/003_create_accidentes.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_db -f backend/database/migrations/004_create_infraestructura.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_db -f backend/database/seed_test.sql
+
+      - name: Construir e iniciar versión desplegada
+        run: |
+          mkdir -p reports
+          cd backend && npm ci && npm run build
+          node dist/main.js &
+          echo $! > /tmp/backend.pid
+          sleep 4
+
+      - name: Ejecutar Health Checks y Smoke Tests Post-Despliegue (Ítem 6.5)
+        id: smoke_tests
+        run: |
+          TARGET_URL="http://localhost:3000"
+          if [[ "${{ github.event.inputs.simulate_failure }}" == "true" ]]; then
+            echo "Simulando fallo post-despliegue apuntando a puerto degradado..."
+            TARGET_URL="http://localhost:3999"
+          fi
+          bash scripts/smoke-test.sh "$TARGET_URL" "reports/post-deploy-smoke-${GITHUB_SHA}.json"
+
+      - name: Ejecutar Reversión Automática (Rollback) ante Fallo Post-Despliegue (Ítem 6.6)
+        if: failure() && steps.smoke_tests.outcome == 'failure'
+        run: |
+          echo "::error::Fallo detectado en las comprobaciones posteriores al despliegue. Ejecutando rollback automático..."
+          bash scripts/rollback.sh "http://localhost:3000" "Rollback automático disparado por fallo en smoke_tests (Commit ${GITHUB_SHA})"
+
+      - name: Detener proceso de verificación
+        if: always()
+        run: |
+          if [[ -f /tmp/backend.pid ]]; then
+            kill "$(cat /tmp/backend.pid)" || true
+          fi
+
+      - name: Publicar evidencia de despliegue, smoke tests y rollback
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: deploy-and-rollback-evidence-${{ github.sha }}
+          path: reports/*.json

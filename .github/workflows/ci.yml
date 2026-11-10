@@ -1,0 +1,175 @@
+name: CI SSDLC — Calidad, SAST, Secretos y SCA (Etapa 3)
+
+on:
+  pull_request:
+    branches: [main, development]
+  push:
+    branches: [main, development]
+
+# Ítem 3.5: Permisos mínimos para el GITHUB_TOKEN del pipeline
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================================================
+  # JOB 1 (Ítem 3.1): Compilación con lockfiles, linting, pruebas y ambiente aislado
+  # ===========================================================================
+  quality-and-tests:
+    name: "3.1 Calidad, Build, Pruebas y Ambiente Aislado"
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: seguridad_vial
+          POSTGRES_PASSWORD: test_pass_isolated_ci
+          POSTGRES_DB: seguridad_vial_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: seguridad_vial
+      DB_PASSWORD: test_pass_isolated_ci
+      DB_NAME: seguridad_vial_test
+      PORT: "3000"
+      COMMIT_SHA: ${{ github.sha }}
+
+    steps:
+      # Ítem 3.5: Acciones de terceros fijadas mediante SHA completo
+      - name: Checkout del código fuente
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias del Backend usando lockfile (npm ci)
+        working-directory: backend
+        run: npm ci
+
+      - name: Instalar dependencias del Frontend usando lockfile (npm ci)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Instalar dependencias de Workers Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r workers/cosevi/requirements.txt
+
+      - name: Ejecutar Linter y Compilación de Frontend
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run build
+
+      - name: Ejecutar Linter y Compilación de Backend
+        working-directory: backend
+        run: |
+          npm run lint --if-present
+          npm run build
+
+      - name: Ejecutar Pruebas Unitarias (Workers Python + Backend)
+        run: |
+          python -m unittest discover -s workers/cosevi -p "test_*.py" -v
+          cd backend && npm test --if-present
+
+      - name: Preparar base de datos aislada con migraciones y datos ficticios (Ítem 3.1 / 4.1)
+        env:
+          PGPASSWORD: test_pass_isolated_ci
+        run: |
+          psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/migrations/001_create_cantones.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/migrations/002_create_delitos.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/migrations/003_create_accidentes.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/migrations/004_create_infraestructura.sql
+          psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/seed_test.sql
+
+      - name: Verificar aplicación en ejecución con Health Checks y Smoke Tests
+        run: |
+          mkdir -p reports
+          node backend/dist/main.js &
+          BACKEND_PID=$!
+          sleep 4
+          bash scripts/smoke-test.sh "http://localhost:3000" "reports/smoke-test-ci-${GITHUB_SHA}.json"
+          kill $BACKEND_PID || true
+
+      - name: Limpiar datos del ambiente aislado al finalizar
+        if: always()
+        env:
+          PGPASSWORD: test_pass_isolated_ci
+        run: |
+          psql -h localhost -U seguridad_vial -d seguridad_vial_test -c "TRUNCATE TABLE infraestructura, accidente, delito, canton RESTART IDENTITY CASCADE;" || true
+
+      - name: Publicar reporte de verificación funcional asociada al commit
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: quality-and-smoke-reports-${{ github.sha }}
+          path: reports/smoke-test-ci-*.json
+
+  # ===========================================================================
+  # JOB 2 (Ítem 3.2): SAST (Semgrep CE), Secretos (Gitleaks) y SCA (OSV-Scanner)
+  # ===========================================================================
+  security-sast-secrets-sca:
+    name: "3.2 Seguridad: Semgrep CE, Gitleaks y OSV-Scanner"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código fuente con historial completo para Gitleaks
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Python 3.12 para Semgrep CE
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Preparar directorio de reportes de seguridad
+        run: mkdir -p reports
+
+      - name: 1/3 Ejecutar Análisis Estático SAST con Semgrep CE (.semgrep.yml)
+        run: |
+          pip install semgrep
+          semgrep scan --config .semgrep.yml --json -o "reports/semgrep-${GITHUB_SHA}.json" --error
+          python3 scripts/sast-check.py
+
+      - name: 2/3 Ejecutar Detección de Secretos con Gitleaks (.gitleaks.toml)
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks dir . --config .gitleaks.toml --report-format json --report-path "reports/gitleaks-dir-${GITHUB_SHA}.json" --exit-code 1
+          /tmp/gitleaks git . --config .gitleaks.toml --report-format json --report-path "reports/gitleaks-git-${GITHUB_SHA}.json" --exit-code 1
+
+      - name: 3/3 Ejecutar Análisis de Composición de Software (SCA) con OSV-Scanner
+        run: |
+          curl -sSL https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64 -o /tmp/osv-scanner
+          chmod +x /tmp/osv-scanner
+          /tmp/osv-scanner scan \
+            --config=osv-scanner.toml \
+            --lockfile=backend/package-lock.json \
+            --lockfile=frontend/package-lock.json \
+            --lockfile=workers/oij/requirements.txt \
+            --lockfile=workers/cosevi/requirements.txt \
+            --lockfile=workers/snit/requirements.txt \
+            --lockfile=workers/osm/requirements.txt \
+            --format json \
+            --output "reports/osv-scanner-${GITHUB_SHA}.json"
+
+      - name: Conservar reportes de seguridad como artefactos asociados al commit (Ítem 3.6)
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: security-reports-${{ github.sha }}
+          path: reports/*.json
