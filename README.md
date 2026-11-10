@@ -8,7 +8,7 @@ emergencia de seguridad o un accidente vial?**
 - Valor central: la relación geoespacial entre criminalidad, accidentabilidad e
   infraestructura de atención (hospitales, comisarías, vías).
 - Solo datos **agregados por cantón/distrito**, nunca perfiles individuales.
-- 🛡️ **Plan y Asignación del Proyecto Final (SSDLC & DevSecOps):** ver [`PLAN-PROYECTO-FINAL-SSDLC.md`](./PLAN-PROYECTO-FINAL-SSDLC.md) (tareas de Roberto, Billy, Jose y Brandon).
+- 🛡️ **Plan y Asignación del Proyecto Final (SSDLC & DevSecOps):** ver [`PLAN-PROYECTO-FINAL-SSDLC.md`](./PLAN-PROYECTO-FINAL-SSDLC.md) (tablero de tareas, roles y estado de **Roberto, Billy, Jose y Brandon**).
 
 ---
 
@@ -72,7 +72,7 @@ npm run dev                # http://localhost:5173
 | Requisito | Versión mínima | Verificado con |
 |-----------|---------------|----------------|
 | Node.js | >= 20 | 22 |
-| Python | >= 3.10 | 3.12 |
+| Python | >= 3.10 | 3.12 / 3.13 |
 | PostgreSQL | >= 13 | 16 |
 | PostGIS | >= 3.0 | 3.6.1 |
 
@@ -86,21 +86,45 @@ npm run dev                # http://localhost:5173
 
 ```
 proyecto-seguridad/
+├── .github/workflows/         Pipelines DevSecOps en GitHub Actions
+│   ├── ci.yml                 Etapa 3: Build, lint, pruebas, PostGIS aislado, Semgrep, Gitleaks y OSV-Scanner
+│   └── deploy-verify.yml      Etapa 6: Despliegue, health checks, smoke tests y rollback automático
 ├── backend/                   API NestJS (TypeScript)
 │   ├── src/modules/snit/      Cantones (límites oficiales + geometría PostGIS)
 │   ├── src/modules/oij/       Delitos (normalización y endpoints)
-│   ├── database/migrations/   SQL: 001_cantones, 002_delitos
+│   ├── src/modules/cosevi/    Accidentes con víctimas (COSEVI)
+│   ├── src/modules/osm/       Infraestructura de atención (OSM/Overpass)
+│   ├── src/modules/cruce/     Panorama cantonal e índice de vulnerabilidad
+│   ├── src/modules/health/    Health check de API y conectividad PostGIS (/api/health)
+│   ├── database/migrations/   SQL: 001_cantones, 002_delitos, 003_accidentes, 004_infraestructura
+│   ├── database/seed_test.sql Semilla de datos ficticios controlados para CI y pruebas (Ítems 3.1 / 4.1)
 │   ├── .env.example           Variables de entorno documentadas
 │   └── package.json
 ├── frontend/                  React + TypeScript + Vite + Leaflet
 │   ├── src/components/        Mapa, filtros, ficha de cantón
 │   └── package.json
-├── workers/                   Scripts Python de ingesta
+├── workers/                   Scripts Python de ingesta OSINT
 │   ├── snit/                  fetch_cantones.py, backfill_cantones.py
 │   ├── oij/                   fetch_delitos.py
-│   ├── cosevi/                fetch_accidentes.py
+│   ├── cosevi/                fetch_accidentes.py, test_fetch_accidentes.py
 │   └── osm/                   fetch_infraestructura.py
-├── plan-proyecto-seguridad-vial-urbana.md   Roadmap y tareas pendientes
+├── docs/ssdcl/                Base de Conocimiento y Evidencias del Ciclo SSDLC (Etapas 1 a 7)
+│   ├── 01-planificacion-kb.md Flujos críticos, control de acceso, amenazas, terceros y catálogo de secretos
+│   ├── 02-analisis-estatico-secretos.md   Alcance y demostración controlada de Semgrep CE y Gitleaks
+│   ├── 03-ci-sca-y-proteccion-ramas.md    Pipeline CI, SCA con OSV-Scanner y protección de ramas
+│   ├── 06-smoke-tests-y-rollback.md       Health checks, smoke tests post-despliegue y recuperación
+│   └── REGISTRO-HALLAZGOS.md  Registro único de hallazgos (HAL-xx) y excepciones vigentes (EXC-xx)
+├── scripts/                   Scripts reproducibles de seguridad, verificación y operación
+│   ├── sast-check.py          Verificador SAST de las reglas de .semgrep.yml
+│   ├── security-scan.ps1      Ejecución local unificada de SAST + Gitleaks
+│   ├── smoke-test.ps1 / .sh   Suite de 8 smoke tests post-despliegue
+│   └── rollback.ps1 / .sh     Procedimiento automatizado de reversión a versión aprobada
+├── deploy/                    Manifiestos de versión aprobada y configuración de despliegue
+├── reports/                   Reportes JSON auditables de smoke tests y evidencia de rollback
+├── .semgrep.yml               Reglas SAST para TypeScript/NestJS y Python
+├── .gitleaks.toml             Configuración de detección de secretos expuestos
+├── osv-scanner.toml           Gobernanza de excepciones SCA con fecha de expiración
+├── PLAN-PROYECTO-FINAL-SSDLC.md   Plan maestro y reparto de tareas del proyecto final SSDLC
 └── .gitignore
 ```
 
@@ -121,11 +145,12 @@ Fuentes OSINT (OIJ, COSEVI, SNIT, OSM/Overpass)
         │
         ▼
    API NestJS (backend/)
-   - /api/cantones         (SNIT) ✅
-   - /api/delitos          (OIJ)  ✅
-   - /api/accidentes       (COSEVI) ✅
-   - /api/infraestructura  (OSM)   ✅
+   - /api/cantones              (SNIT) ✅
+   - /api/delitos               (OIJ)  ✅
+   - /api/accidentes            (COSEVI) ✅
+   - /api/infraestructura       (OSM)   ✅
    - /api/cantones/:id/panorama (cruce) ✅
+   - /api/health                (health check + PostGIS) ✅
         │
         ▼
    Frontend React + TS (Leaflet)
@@ -140,33 +165,61 @@ directo a las fuentes externas (evita CORS, controla caché y errores).
 
 ## Estado actual del proyecto
 
-### Completado
+### Funcionalidad OSINT (Completado)
 
 | Módulo | Estado | Detalle |
 |--------|--------|---------|
-| **Base de datos** | ✅ | PostgreSQL + PostGIS, migraciones SQL, esquema `cantones` y `delitos` |
+| **Base de datos** | ✅ | PostgreSQL + PostGIS, migraciones SQL (`001` a `004`) y semilla de pruebas (`seed_test.sql`) |
 | **Worker SNIT** | ✅ | `fetch_cantones.py` descarga geometrías cantonales vía ArcGIS FeatureServer |
 | **Worker OIJ** | ✅ | `fetch_delitos.py` descarga CSVs de datosabiertospj (2020-2025) |
 | **Backend SNIT** | ✅ | Endpoints `GET /api/cantones` y `GET /api/cantones/:codigo` |
 | **Backend OIJ** | ✅ | Endpoints `/api/delitos`, `/api/delitos/por-canton`, `/api/delitos/tipos` |
 | **Frontend mapa** | ✅ | Mapa Leaflet con capa de cantones, panel de filtros, ficha de detalle |
-| **Migraciones SQL** | ✅ | `001_create_cantones.sql`, `002_create_delitos.sql`, `003_create_accidentes.sql`, `004_create_infraestructura.sql` |
 | **Worker OSM/Overpass** | ✅ | `fetch_infraestructura.py` consulta Overpass API (hospitales, clínicas, comisarías) sin API key |
 | **Backend OSM/Overpass** | ✅ | Endpoints `/api/infraestructura`, `/api/infraestructura/por-canton` |
-| **Worker COSEVI** | ✅ | `fetch_accidentes.py` descarga el CSV oficial de accidentes con víctimas |
+| **Worker COSEVI** | ✅ | `fetch_accidentes.py` descarga el CSV oficial de accidentes con víctimas + tests unitarios |
 | **Backend COSEVI** | ✅ | Endpoints `/api/accidentes`, `/api/accidentes/por-canton`, `/api/accidentes/tipos`, `/api/accidentes/clases` |
-| **Endpoint de cruce** | ✅ | `GET /api/cantones/:id/panorama` combina las 4 fuentes + índice de cobertura |
+| **Endpoint de cruce** | ✅ | `GET /api/cantones/:id/panorama` combina las 4 fuentes + `indice_cobertura` |
+| **Health Check** | ✅ | `GET /api/health` comprueba estado de la API y versión activa de PostGIS |
 
-### Pendiente (tareas para el equipo)
+### Ciclo de Vida de Desarrollo Seguro (SSDLC & DevSecOps)
 
-| Tarea | Responsable | Estado | Notas |
-|-------|-------------|--------|-------|
-| Geometría de 5 cantones faltantes | — | 🟡 Parcial | Sarchí, Río Cuarto, Quepos, Monteverde, Puerto Jiménez (DTA 2022 sin geom) |
-| Capas adicionales en frontend | — | 🟡 Parcial | Marcadores de infraestructura ✅ listos; falta heatmap de delitos y gráficos por cantón |
-| Redis caché para Overpass/SNIT | — | 🔴 No iniciado | Evitar sobrecargar APIs públicas |
-| Despliegue | — | 🔴 No iniciado | Decidir plataforma (Vercel, Railway, etc.) |
+El detalle completo de ítems, responsables y revisores se encuentra en [`PLAN-PROYECTO-FINAL-SSDLC.md`](./PLAN-PROYECTO-FINAL-SSDLC.md):
 
-Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y contexto por módulo.
+| Etapa NIST NCCoE | Ítems Implementados | Estado | Artefacto / Evidencia Principal |
+|------------------|---------------------|--------|---------------------------------|
+| **1. Planificación** | `1.4`, `1.5` (Plan de tratamiento, terceros, lockfiles y secretos) | ✅ | [`docs/ssdcl/01-planificacion-kb.md`](./docs/ssdcl/01-planificacion-kb.md) |
+| **2. Desarrollo** | `2.3` (Análisis SAST con Semgrep CE y detección de secretos con Gitleaks) | ✅ | [`.semgrep.yml`](./.semgrep.yml), [`.gitleaks.toml`](./.gitleaks.toml), [`docs/ssdcl/02-analisis-estatico-secretos.md`](./docs/ssdcl/02-analisis-estatico-secretos.md) |
+| **3. Construcción e Integración** | `3.1`, `3.2`, `3.5`, `3.6` (CI en GitHub Actions, PostGIS aislado, Semgrep, Gitleaks, OSV-Scanner y SHA pinning) | ✅ | [`.github/workflows/ci.yml`](./.github/workflows/ci.yml), [`osv-scanner.toml`](./osv-scanner.toml), [`docs/ssdcl/03-ci-sca-y-proteccion-ramas.md`](./docs/ssdcl/03-ci-sca-y-proteccion-ramas.md) |
+| **6. Despliegue** | `6.1`, `6.5`, `6.6` (Health check `/api/health`, smoke tests post-despliegue y rollback automatizado) | ✅ | [`.github/workflows/deploy-verify.yml`](./.github/workflows/deploy-verify.yml), [`scripts/smoke-test.ps1`](./scripts/smoke-test.ps1), [`scripts/rollback.ps1`](./scripts/rollback.ps1), [`docs/ssdcl/06-smoke-tests-y-rollback.md`](./docs/ssdcl/06-smoke-tests-y-rollback.md) |
+| **7. Operación y Mejora** | Registro inicial de hallazgos remediados (`HAL-01..03`) y excepciones (`EXC-01..02`) | 🟡 En progreso | [`docs/ssdcl/REGISTRO-HALLAZGOS.md`](./docs/ssdcl/REGISTRO-HALLAZGOS.md) (pendientes ítems asignados a Jose, Billy y Brandon en [`PLAN-PROYECTO-FINAL-SSDLC.md`](./PLAN-PROYECTO-FINAL-SSDLC.md)) |
+
+---
+
+## Comandos Reproducibles de Calidad, Pruebas y Seguridad (SSDLC)
+
+```powershell
+# 1. Compilación y Linting (Backend y Frontend)
+cd backend && npm run build
+cd ../frontend && npm run lint && npm run build
+
+# 2. Pruebas Unitarias (Workers Python y Backend)
+python -m unittest discover -s workers/cosevi -p "test_*.py" -v
+cd backend && npm test --if-present
+
+# 3. Análisis Estático SAST (Semgrep CE / .semgrep.yml) y Detección de Secretos (Gitleaks)
+python scripts/sast-check.py
+powershell -ExecutionPolicy Bypass -File scripts/security-scan.ps1
+
+# 4. Análisis de Composición de Software (SCA) con OSV-Scanner
+osv-scanner scan --config=osv-scanner.toml --lockfile=backend/package-lock.json --lockfile=frontend/package-lock.json --lockfile=workers/oij/requirements.txt --lockfile=workers/cosevi/requirements.txt --lockfile=workers/snit/requirements.txt --lockfile=workers/osm/requirements.txt
+
+# 5. Health Checks y Smoke Tests Post-Despliegue (con el backend corriendo en :3000)
+powershell -ExecutionPolicy Bypass -File scripts/smoke-test.ps1 -BaseUrl "http://localhost:3000"
+
+# 6. Procedimiento de Recuperación / Rollback y Re-verificación
+powershell -ExecutionPolicy Bypass -File scripts/rollback.ps1 -BaseUrl "http://localhost:3000"
+```
 
 ---
 
@@ -174,10 +227,10 @@ Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y context
 
 | # | Fuente | Qué aporta | Enlace oficial | Responsable |
 |---|--------|-----------|-----------------|-------------|
-| 1 | OIJ — Estadísticas Policiales | Frecuencia y tipo de delitos por cantón (2020-2025) | [datosabiertospj.poder-judicial.go.cr](https://datosabiertospj.poder-judicial.go.cr/dataset/estadisticas-policiales) | Roberto (RobertoUNA) |
-| 2 | COSEVI | Accidentes de tránsito con víctimas por cantón/distrito/año | [datosabiertos.csv.go.cr](https://datosabiertos.csv.go.cr/datasets/193472-consolidado-de-accidentes-de-transito-con-victimas.download/) | Billy-Ugalde |
-| 3 | SNIT | Límites cantonales oficiales (geometría) | [snitcr.go.cr/ico_servicios_ogc](https://www.snitcr.go.cr/ico_servicios_ogc) | Jose-Picado-Zamora |
-| 4 | OpenStreetMap / Overpass | Hospitales, clínicas y comisarías (infraestructura de atención) | [wiki.openstreetmap.org/wiki/Overpass_API](https://wiki.openstreetmap.org/wiki/Overpass_API) | Brandon-Corrales |
+| 1 | OIJ — Estadísticas Policiales | Frecuencia y tipo de delitos por cantón (2020-2025) | [datosabiertospj.poder-judicial.go.cr](https://datosabiertospj.poder-judicial.go.cr/dataset/estadisticas-policiales) | Roberto (`RobertoUNA`) |
+| 2 | COSEVI | Accidentes de tránsito con víctimas por cantón/distrito/año | [datosabiertos.csv.go.cr](https://datosabiertos.csv.go.cr/datasets/193472-consolidado-de-accidentes-de-transito-con-victimas.download/) | Billy (`Billy-Ugalde`) |
+| 3 | SNIT | Límites cantonales oficiales (geometría) | [snitcr.go.cr/ico_servicios_ogc](https://www.snitcr.go.cr/ico_servicios_ogc) | Jose (`Jose-Picado-Zamora`) |
+| 4 | OpenStreetMap / Overpass | Hospitales, clínicas y comisarías (infraestructura de atención) | [wiki.openstreetmap.org/wiki/Overpass_API](https://wiki.openstreetmap.org/wiki/Overpass_API) | Brandon (`Brandon-Corrales`) |
 
 **Cómo se consume cada fuente:**
 
@@ -196,7 +249,7 @@ Ver `plan-proyecto-seguridad-vial-urbana.md` para el roadmap detallado y context
 
 Cada worker guarda `fuente` y `fecha_obtencion` en cada registro que inserta,
 y cada endpoint de la API expone esos mismos datos en la respuesta y en las
-cabeceras `X-Data-Source` / `X-Fetch-Date`
+cabeceras `X-Data-Source` / `X-Fetch-Date`.
 
 ---
 
@@ -204,8 +257,9 @@ cabeceras `X-Data-Source` / `X-Fetch-Date`
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
+| GET | `/api/health` | Estado de salud del backend y versión activa de PostgreSQL/PostGIS |
 | GET | `/api/cantones` | FeatureCollection GeoJSON de todos los cantones (SNIT) |
-| GET | `/api/cantones/:codigo` | Un cantón por código DTA |
+| GET | `/api/cantones/:codigo` | Un cantón por código DTA (ej. `1001` para San José) |
 | GET | `/api/delitos?canton&tipo&desde&hasta` | Delitos filtrados + resumen por cantón |
 | GET | `/api/delitos/por-canton` | Totales por cantón (para choropleth) |
 | GET | `/api/delitos/tipos` | Lista de tipos de delito disponibles |
@@ -252,7 +306,7 @@ PORT=3000
 OSM_CONTACT_EMAIL=tu_email@ejemplo.com
 ```
 
-> **Nunca** commitear el archivo `.env` con credenciales reales.
+> **Nunca** commitear el archivo `.env` con credenciales reales (protegido por `.gitignore` y verificado con Gitleaks en local y CI).
 
 ---
 
@@ -273,9 +327,7 @@ OSM_CONTACT_EMAIL=tu_email@ejemplo.com
    (`OSM_CONTACT_EMAIL` en `.env`, ver `SPEC-osm.md`). El worker consulta
    `overpass-api.de` a nivel país en una sola petición (no por cantón) y cae
    automáticamente al mirror `overpass.kumi.systems` si la instancia oficial
-   falla tras reintentar con backoff. Sigue pendiente el caché (Redis u otro)
-   delante del worker, y la cobertura depende de qué tan mapeada esté cada
-   zona en OSM.
+   falla tras reintentar con backoff.
 
 4. **Límite de resultados en `/api/infraestructura`**: el `findAll` original
    ordenaba por `tipo ASC` y truncaba con `.take(1000)`, patrón copiado de
@@ -295,7 +347,7 @@ OSM_CONTACT_EMAIL=tu_email@ejemplo.com
 ## Consideraciones éticas
 
 - No se evaden CAPTCHA, autenticación ni rate limits de ninguna fuente.
-- No se publican tokens/credenciales (`.env` en `.gitignore`).
+- No se publican tokens/credenciales (`.env` en `.gitignore` + Gitleaks en CI).
 - Solo datos agregados por cantón/zona, nunca perfiles individuales.
 - Se respetan los límites de uso de la API de Overpass.
 - Cada registro almacena `fuente` y `fecha_obtencion`.
