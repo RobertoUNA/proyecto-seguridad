@@ -285,3 +285,5 @@ $ docker inspect ... HostConfig      -> privileged=false readonly=true capdrop=[
 - **Otras formas de privilegio:** la política cubre `privileged` y `user`. No evalúa `cap_add: [SYS_ADMIN]`, `pid: host`, `network_mode: host` ni montar `/var/run/docker.sock`. Son extensiones naturales (el `docker-compose.yml` real ya usa `cap_drop: [ALL]` y `no-new-privileges`).
 - **Variantes de compose:** se evalúa el YAML tal como está, sin interpolar variables ni combinar `docker-compose.override.yml`.
 - **No sustituye la revisión humana:** desactivar o debilitar `policy/container.rego` es un cambio a reglas de seguridad y requiere PR revisado por otro integrante (matriz de acceso de la KB).
+
+> **Cambio posterior (2026-11-12):** se corrigió **solo el texto del mensaje final** de `scripts/policy-check.ps1` / `.sh`, que ahora muestra la carpeta real de los reportes (la alternativa, `-ReportDir` / `REPORT_DIR`, o `reports/`) en vez de siempre `reports/`. No cambian las políticas, la lógica, los códigos de salida ni los nombres de archivo, y la evidencia ya generada (`reports/conftest-2761648….json` / `.txt`) no se ve afectada.

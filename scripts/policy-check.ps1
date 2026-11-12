@@ -164,7 +164,9 @@ try {
     [void]$txt.AppendLine("RESULTADO GLOBAL: $overall")
     [System.IO.File]::WriteAllText((Join-Path $Reports "conftest-insecure-demo-$Sha.txt"), $txt.ToString(), $utf8)
 
-    Write-Host "`n=== Resultado: $overall  ->  reports/conftest-$Sha.json, reports/conftest-insecure-demo-$Sha.txt" -ForegroundColor Cyan
+    # Carpeta real de los reportes (relativa al repo si está dentro; si no, ruta completa).
+    $shown = if ($Reports.StartsWith($Root)) { $Reports.Substring($Root.Length).TrimStart([char[]]@('\', '/')).Replace('\', '/') } else { $Reports }
+    Write-Host "`n=== Resultado: $overall  ->  $shown/conftest-$Sha.json, $shown/conftest-insecure-demo-$Sha.txt" -ForegroundColor Cyan
     if ($overall -ne "APPROVED") { exit 1 }
     exit 0
 }

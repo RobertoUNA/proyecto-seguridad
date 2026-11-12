@@ -93,7 +93,9 @@ DEMO="$REPORTS/conftest-insecure-demo-${SHA}.txt"
   done
 } > "$DEMO"
 
-export SHA WORKTREE_CLEAN CONFTEST_IMAGE VERSION
+# Carpeta real de los reportes para el mensaje final (relativa al repo si está dentro).
+REPORTS_SHOWN="${REPORTS#"$ROOT"/}"
+export SHA WORKTREE_CLEAN CONFTEST_IMAGE VERSION REPORTS_SHOWN
 "$PYTHON" - "$(host_path "$WORK")" "$(host_path "$REPORTS")" "$(host_path "$DEMO")" <<'PY'
 import datetime, json, os, sys
 work, reports, demo = sys.argv[1:4]
@@ -161,6 +163,6 @@ with open(demo, "a", encoding="utf-8") as f:
     f.write(f"Ejemplos inseguros rechazados como se esperaba: {demo_status}\n")
     f.write(f"RESULTADO GLOBAL: {overall}\n")
 print(f"\nverify={verify['result']} allowed={allowed} insecure_demo={demo_status}")
-print(f"=== Resultado: {overall}  ->  reports/conftest-{os.environ['SHA']}.json")
+print(f"=== Resultado: {overall}  ->  {os.environ['REPORTS_SHOWN']}/conftest-{os.environ['SHA']}.json")
 sys.exit(0 if overall == "APPROVED" else 1)
 PY
