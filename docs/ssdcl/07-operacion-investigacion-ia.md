@@ -8,7 +8,29 @@
 
 ## 7.2 — Registro de eventos de seguridad
 
-> **Evidencia:** la muestra real y la verificación se generan **sobre el commit que contiene el código** (mismo procedimiento que en `3.4`): `reports/security-events-sample-<sha>.jsonl`, `reports/security-traffic-<sha>.json` y `reports/verify-security-logs-<sha>.txt`. *SHA pendiente: se completa tras el commit del código.*
+> **Commit analizado (evidencia vigente):** `bd5a92a572119b2b568aea83b4e7dcc8ce631164`. Contiene el código del ítem (`3ad2ecf`) y la corrección del mensaje de `policy-check` (`bd5a92a`), que no afecta al backend. Stack reconstruido con `COMMIT_SHA=bd5a92a…` (`GET /api/health` devuelve ese `commit_sha`), árbol limpio.  
+> **Reportes:**
+> - [`reports/security-events-sample-bd5a92a572119b2b568aea83b4e7dcc8ce631164.jsonl`](../../reports/security-events-sample-bd5a92a572119b2b568aea83b4e7dcc8ce631164.jsonl): 6 eventos reales, uno por cada petición con error.
+> - [`reports/security-traffic-bd5a92a572119b2b568aea83b4e7dcc8ce631164.json`](../../reports/security-traffic-bd5a92a572119b2b568aea83b4e7dcc8ce631164.json): qué se envió, código HTTP y `correlation_id` devuelto.
+> - [`reports/verify-security-logs-bd5a92a572119b2b568aea83b4e7dcc8ce631164.txt`](../../reports/verify-security-logs-bd5a92a572119b2b568aea83b4e7dcc8ce631164.txt): **PASS**.
+> - [`reports/smoke-test-compose-bd5a92a572119b2b568aea83b4e7dcc8ce631164.json`](../../reports/smoke-test-compose-bd5a92a572119b2b568aea83b4e7dcc8ce631164.json): **8/8**.
+
+### Resultado sobre `bd5a92a`
+
+| Petición (`security-log-sample.ps1`) | HTTP | Evento registrado | `route` | `suspicious_patterns` |
+| :--- | :---: | :--- | :--- | :--- |
+| normal `/api/cantones` | 200 | — (los 2xx no generan evento) | | |
+| fecha inválida | 400 | `validation_rejected` | `/api/delitos` | `[]` |
+| cantón inexistente | 404 | `not_found` | `/api/cantones/:id/panorama` | `[]` |
+| ruta inexistente | 404 | `not_found` | `/api/ruta-inexistente` | `[]` |
+| `?canton=' OR 1=1--` | 400 | `abuse_suspected` | `/api/delitos` | `["sql_injection"]` |
+| `POST /api/cantones` | 404 | `access_denied` | `/api/cantones` | `[]` |
+| mismo 404 vía nginx `:8080` | 404 | `not_found` | `/api/cantones/:id/panorama` | `[]` |
+
+**Cruce y comprobaciones:**
+- Cada `correlation_id` del manifiesto coincide con el de su evento.
+- Todos los eventos tienen el **mismo `actor_id`** (`b4231f77ae16e55c`), incluida la petición de inyección, que llevaba un `X-Forwarded-For` falso directo a `:3001` (se ignoró) y la que pasó por nginx.
+- Búsqueda en los cuatro reportes: **0** apariciones de la sal, de `DB_PASSWORD`/`PASSWORD`, de las cabeceras ficticias (`Bearer`, cookie) y de **direcciones IPv4**. El texto `' OR 1=1--` solo aparece en la *descripción* de la prueba dentro de `security-traffic-….json`, y **0** veces en la muestra de eventos.
 
 ### Contexto de la KB: qué eventos existen en esta versión
 
@@ -85,7 +107,7 @@ Líneas reales de `docker compose logs backend`, verificación local del 2026-11
 - La segunda es `GET /api/cantones/999999/panorama`: se registra el patrón `:id`, no `999999`.
 - La tercera es un `QueryFailedError` provocado al renombrar temporalmente la tabla `canton` en la BD local. Es **la única línea** que quedó en `docker logs`: no hay SQL, nombre de tabla ni stack.
 
-### Verificación (antes del commit, con el mismo código)
+### Verificación adicional (antes del commit, con el mismo código)
 
 - Smoke tests contra `:3001` con `-ReportPath` propio: **8/8 PASS** (incluye el `404` y el `400`). `reports/smoke-test-report.json` se mantiene intacto.
 - Tráfico de `scripts/security-log-sample.ps1`:
