@@ -10,8 +10,19 @@
   },
   "detail": {
     "contributors": [],
-    "diagrams": [],
-    "diagramTop": 0,
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "Nuevo diagrama STRIDE",
+        "diagramType": "STRIDE",
+        "placeholder": "Descripción de nuevo diagrama STRIDE",
+        "thumbnail": "./public/content/images/thumbnail.stride.jpg",
+        "version": "2.6.2",
+        "cells": [],
+        "description": "Diagrama STRIDE ciber"
+      }
+    ],
+    "diagramTop": 1,
     "reviewer": "Fabian",
     "threatTop": 0
   }
