@@ -205,7 +205,9 @@ En `01-planificacion-kb.md`, fila `THR-05`, columna **Componente Afectado** y **
 
 ## 3.4 — Políticas con Conftest + OPA/Rego
 
-> **Estado de la evidencia:** los reportes `reports/conftest-<sha>.json` y `reports/conftest-insecure-demo-<sha>.txt` se generan **sobre el commit que contiene `policy/`** (después de confirmarlo), para no repetir el problema de trazabilidad de `f045577`. Las salidas de abajo vienen de la ejecución previa al commit, con el mismo contenido de archivos.
+> **Commit analizado (evidencia vigente):** `2761648eafbcb51b2dea7f8e602d34c5f0c2f4bb` (commit `feat(ssdlc): item 3.4 …`, el primero que contiene `policy/`).  
+> **Reportes:** [`reports/conftest-2761648eafbcb51b2dea7f8e602d34c5f0c2f4bb.json`](../../reports/conftest-2761648eafbcb51b2dea7f8e602d34c5f0c2f4bb.json) y [`reports/conftest-insecure-demo-2761648eafbcb51b2dea7f8e602d34c5f0c2f4bb.txt`](../../reports/conftest-insecure-demo-2761648eafbcb51b2dea7f8e602d34c5f0c2f4bb.txt). Generados el 2026-11-12T00:35:33Z con el árbol limpio (`worktree_clean: true`). Resultado: **`APPROVED`**.  
+> **Por qué el SHA de los reportes del 3.4 difiere del 3.3 (`36f2324`):** cada análisis se ejecuta sobre el commit que contiene lo analizado, y `policy/` no existía en `36f2324`. Una ejecución preliminar sobre `36f2324` se descartó por ese motivo. Los reportes de un commit se versionan en el commit siguiente, porque un commit no puede contener su propio reporte.
 
 ### Archivos del ítem
 
