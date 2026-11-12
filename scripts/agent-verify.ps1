@@ -71,6 +71,18 @@ function Invoke-Native([string]$Exe, [string[]]$Arguments) {
     return @{ exit = $LASTEXITCODE; lines = @($out) }
 }
 
+# Igual que Invoke-Native, pero con stdout y stderr separados: `out` (solo stdout) es lo que se
+# interpreta como JSON; `lines` (stdout + stderr) sirve para el diagnóstico. Así el progreso de un
+# `docker pull` en una máquina sin la imagen no invalida el JSON de Semgrep/Gitleaks.
+function Invoke-NativeSplit([string]$Exe, [string[]]$Arguments) {
+    $errFile = [System.IO.Path]::GetTempFileName()
+    $out = & $Exe @Arguments 2>$errFile | ForEach-Object { "$_" }
+    $code = $LASTEXITCODE
+    $err = @(Get-Content $errFile -ErrorAction SilentlyContinue | ForEach-Object { $_ -replace '^docker : ', '' })
+    Remove-Item $errFile -Force -ErrorAction SilentlyContinue
+    return @{ exit = $code; out = (@($out) -join "`n"); lines = @($out) + $err }
+}
+
 # Quita fragmentos de código y cualquier valor con forma de token antes de guardar o mostrar.
 function Protect-Lines([string[]]$Lines) {
     $Lines | ForEach-Object { $_ -replace "$([char]27)\[[0-9;]*[A-Za-z]", "" } | ForEach-Object {
@@ -195,12 +207,12 @@ function Invoke-Verification {
                 Add-Result "security:semgrep" "INCOMPLETE" $cmd @("No se pudo empaquetar el código fuente para Semgrep")
             } else {
                 $t = [Diagnostics.Stopwatch]::StartNew()
-                $r = Invoke-Native "docker" @("run", "--rm", "-v", "${work}:/in:ro", "--entrypoint", "sh", $SemgrepImage, "-c",
+                $r = Invoke-NativeSplit "docker" @("run", "--rm", "-v", "${work}:/in:ro", "--entrypoint", "sh", $SemgrepImage, "-c",
                     "mkdir -p /w && tar -xf /in/semgrep.tar -C /w && cd /w && semgrep scan --config .semgrep.yml --error --metrics=off --disable-version-check --quiet --json --output /tmp/out.json backend/src frontend/src workers >/dev/null 2>/tmp/err; rc=`$?; cat /tmp/out.json 2>/dev/null || cat /tmp/err; exit `$rc")
                 $lines = @()
                 $status = switch ($r.exit) { 0 { "PASS" } 1 { "FAIL" } default { "INCOMPLETE" } }
                 try {
-                    $sg = ($r.lines -join "`n") | ConvertFrom-Json
+                    $sg = $r.out | ConvertFrom-Json
                     $lines = @($sg.results | ForEach-Object { "error: $($_.check_id) en $($_.path):$($_.start.line) — $($_.extra.message)" })
                     $lines += @($sg.errors | ForEach-Object { "error de Semgrep: $($_.message)" })
                     if ($status -eq "PASS" -and @($sg.errors).Count -gt 0) { $status = "INCOMPLETE" }
@@ -218,14 +230,14 @@ function Invoke-Verification {
             Add-Result "security:gitleaks" "INCOMPLETE" $cmd @("No se pudo empaquetar el árbol versionable para Gitleaks")
         } else {
             $t = [Diagnostics.Stopwatch]::StartNew()
-            $r = Invoke-Native "docker" @("run", "--rm", "-v", "${work}:/in:ro", "--entrypoint", "sh", $GitleaksImage, "-c",
+            $r = Invoke-NativeSplit "docker" @("run", "--rm", "-v", "${work}:/in:ro", "--entrypoint", "sh", $GitleaksImage, "-c",
                 "mkdir -p /w && tar -xf /in/repo.tar -C /w && cd /w && gitleaks dir . --config .gitleaks.toml --redact --no-banner --log-level error --report-format json --report-path /tmp/r.json --exit-code 1 >/tmp/log 2>&1; rc=`$?; if [ -f /tmp/r.json ]; then cat /tmp/r.json; else cat /tmp/log; fi; exit `$rc")
             $status = switch ($r.exit) { 0 { "PASS" } 1 { "FAIL" } default { "INCOMPLETE" } }
             $lines = $r.lines
             try {
-                $gl = @((($r.lines -join "`n") | ConvertFrom-Json) | ForEach-Object { $_ })
+                $gl = @(($r.out | ConvertFrom-Json) | ForEach-Object { $_ })
                 # Reporte enmascarado (--redact): conserva regla, archivo y línea; el secreto queda como REDACTED.
-                [System.IO.File]::WriteAllText((Join-Path $Reports "agent-verify-gitleaks-last.json"), ($r.lines -join "`n"), $Utf8)
+                [System.IO.File]::WriteAllText((Join-Path $Reports "agent-verify-gitleaks-last.json"), $r.out, $Utf8)
                 $lines = @($gl | ForEach-Object { "leak: regla $($_.RuleID) en $($_.File):$($_.StartLine) (valor enmascarado: $($_.Secret))" })
             } catch { if ($status -eq "FAIL") { $status = "INCOMPLETE" } }
             Add-Result "security:gitleaks" $status $cmd $lines "" ([math]::Round($t.Elapsed.TotalSeconds, 1))

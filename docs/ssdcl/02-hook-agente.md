@@ -110,6 +110,11 @@ El hook y el wrapper son **controles de seguridad** (matriz de acceso de la KB: 
 - **Depende del entorno local:** Docker encendido, `node_modules` instalados y Python. Si faltan, el resultado es `INCOMPLETE` y el agente queda bloqueado al tercer intento; es intencional, pero exige intervención humana.
 - **Windows sin Git Bash:** el comando del hook usa `shell: bash`. Sin Git Bash, Claude Code no puede ejecutarlo (error no bloqueante). En ese caso se configuraría localmente el formato exec `powershell.exe` + `-File scripts/agent-verify.ps1 -Hook`.
 - **Un agente podría intentar burlarlo** (editar el wrapper o las reglas). El mensaje del hook lo prohíbe y `AGENTS.md` debe prohibirlo, pero la garantía real es la revisión humana del diff.
+- **Extractos vacíos de `agent-verify.sh` en Windows (Git Bash):** los logs de cada paso usan `:` en el nombre (p. ej. `security:gitleaks.log`), que Windows no permite, así que los extractos de error salen vacíos. Los estados (`PASS`/`FAIL`) son correctos, en Linux funciona y el hook en Windows usa `agent-verify.ps1`, que no tiene este problema.
+
+> **Corrección posterior (2026-11-12):** en una máquina sin las imágenes de Semgrep o Gitleaks, el progreso de descarga del `docker pull` (stderr) se mezclaba con la salida JSON. Semgrep quedaba `INCOMPLETE` aunque no hubiera hallazgos, y un hallazgo real de Gitleaks habría quedado `INCOMPLETE` en vez de `FAIL`. Es el mismo problema que se corrigió en `policy-check` (PR #6). `scripts/agent-verify.ps1` / `.sh` ahora separan stderr del JSON solo en esas dos llamadas. No cambian los pasos, los estados, la lógica del hook ni el límite de 3 intentos.
+> - **Verificación:** sin imágenes en caché, ambas variantes pasan de `FAIL` (semgrep `INCOMPLETE`) a `PASS`. Con imágenes en caché los estados son idénticos a los de antes. Con un defecto SQL y un token ficticio temporales, sin imágenes en caché, `semgrep` y `gitleaks` dan `FAIL` (token `REDACTED`).
+> - **Las demostraciones `a` y `b` siguen siendo válidas:** se ejecutaron con las imágenes ya en caché, donde este problema no ocurría.
 
 ## Texto sugerido para `AGENTS.md` (ítem `2.1`, Jose)
 

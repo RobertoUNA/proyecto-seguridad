@@ -121,10 +121,10 @@ verify() {
       local t0=$SECONDS
       docker run --rm -v "$(host_path "$WORK"):/in:ro" --entrypoint sh "$SEMGREP_IMAGE" -c \
         'mkdir -p /w && tar -xf /in/semgrep.tar -C /w && cd /w && semgrep scan --config .semgrep.yml --error --metrics=off --disable-version-check --quiet --json --output /tmp/out.json backend/src frontend/src workers >/dev/null 2>/tmp/err; rc=$?; cat /tmp/out.json 2>/dev/null || cat /tmp/err; exit $rc' \
-        > "$WORK/semgrep.json" 2>&1
+        > "$WORK/semgrep.json" 2>"$WORK/semgrep.err"   # stderr aparte: el progreso de un pull no invalida el JSON
       local rc=$? st
       case $rc in 0) st=PASS ;; 1) st=FAIL ;; *) st=INCOMPLETE ;; esac
-      "$PYTHON" - "$(host_path "$WORK/semgrep.json")" > "$WORK/out.log" 2>/dev/null <<'PY' || st=INCOMPLETE
+      "$PYTHON" - "$(host_path "$WORK/semgrep.json")" > "$WORK/out.log" 2>/dev/null <<'PY' || { st=INCOMPLETE; cat "$WORK/semgrep.json" "$WORK/semgrep.err" >> "$WORK/out.log"; }
 import json, sys
 d = json.load(open(sys.argv[1], encoding="utf-8"))
 for r in d.get("results", []):
@@ -147,7 +147,7 @@ PY
     local t0=$SECONDS
     docker run --rm -v "$(host_path "$WORK"):/in:ro" --entrypoint sh "$GITLEAKS_IMAGE" -c \
       'mkdir -p /w && tar -xf /in/repo.tar -C /w && cd /w && gitleaks dir . --config .gitleaks.toml --redact --no-banner --log-level error --report-format json --report-path /tmp/r.json --exit-code 1 >/tmp/log 2>&1; rc=$?; if [ -f /tmp/r.json ]; then cat /tmp/r.json; else cat /tmp/log; fi; exit $rc' \
-      > "$WORK/gitleaks.json" 2>&1
+      > "$WORK/gitleaks.json" 2>"$WORK/gitleaks.err"   # stderr aparte: el progreso de un pull no invalida el JSON
     local rc=$? st
     case $rc in 0) st=PASS ;; 1) st=FAIL ;; *) st=INCOMPLETE ;; esac
     if "$PYTHON" - "$(host_path "$WORK/gitleaks.json")" > "$WORK/out.log" 2>/dev/null <<'PY'
@@ -156,7 +156,7 @@ for f in json.load(open(sys.argv[1], encoding="utf-8")):
     print(f"leak: regla {f['RuleID']} en {f['File']}:{f['StartLine']} (valor enmascarado: {f.get('Secret')})")
 PY
     then cp "$WORK/gitleaks.json" "$REPORTS/agent-verify-gitleaks-last.json"   # reporte enmascarado (--redact)
-    else [[ "$st" == FAIL ]] && st=INCOMPLETE; cp "$WORK/gitleaks.json" "$WORK/out.log"; fi
+    else [[ "$st" == FAIL ]] && st=INCOMPLETE; cat "$WORK/gitleaks.json" "$WORK/gitleaks.err" > "$WORK/out.log"; fi
     record security:gitleaks "$st" "$cmd" "" $((SECONDS - t0)) "$WORK/out.log"
   fi
 
