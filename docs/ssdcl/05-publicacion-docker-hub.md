@@ -79,28 +79,28 @@ push a main / development
 
 ## Digest: cómo se obtiene, se verifica y se usa
 
-1. **Obtención:** después del `docker push`, el digest se pide **al registro**: `docker buildx imagetools inspect docker.io/<usuario>/proyecto-seguridad-<c>:sha-<SHA> --format '{{json .Manifest}}'` → `.digest`.
+1. **Obtención:** después del `docker push`, el digest se pide **al registro**: `docker buildx imagetools inspect docker.io/elrobb/proyecto-seguridad-<c>:sha-<SHA> --format '{{json .Manifest}}'` → `.digest`.
 2. **Verificación:** se hace `docker pull <repo>@<digest>` y se comprueba que el image ID coincide con el de la imagen evaluada por Trivy/Conftest. Si no coincide, el job falla.
-3. **Registro:** `candidate-release-<sha>.json` guarda `backend_image` y `frontend_image` como `docker.io/<usuario>/proyecto-seguridad-<c>@sha256:…`, junto con `commit_sha`, `ref`, enlaces a la ejecución y los nombres de los artefactos de reportes y SBOM. Se sube como artefacto `release-candidate-<sha>`; **no** se hace commit al repositorio.
+3. **Registro:** `candidate-release-<sha>.json` guarda `backend_image` y `frontend_image` como `docker.io/elrobb/proyecto-seguridad-<c>@sha256:…`, junto con `commit_sha`, `ref`, enlaces a la ejecución y los nombres de los artefactos de reportes y SBOM. Se sube como artefacto `release-candidate-<sha>`; **no** se hace commit al repositorio.
 4. **Despliegue:** se despliega por **digest** (`backend_image` / `frontend_image`), nunca por etiqueta. Lo hacen `5.1` (Jose, registro de versión) y `6.5`/`6.6` (Roberto, despliegue y rollback).
 
 Para verificarlo manualmente:
 
 ```bash
-docker buildx imagetools inspect docker.io/<usuario>/proyecto-seguridad-backend:sha-<SHA>   # digest del índice
-docker pull docker.io/<usuario>/proyecto-seguridad-backend@sha256:<digest>
+docker buildx imagetools inspect docker.io/elrobb/proyecto-seguridad-backend:sha-<SHA>   # digest del índice
+docker pull docker.io/elrobb/proyecto-seguridad-backend@sha256:<digest>
 ```
 
 **Si se reconstruye, se vuelve a evaluar.** Dos builds del mismo commit no producen el mismo digest. En la simulación local, el frontend del mismo SHA dio `sha256:b8687d39…` en una ejecución y `sha256:4f8e66d2…` en la siguiente, entre otras cosas porque `apk upgrade` puede instalar parches distintos. Por eso el workflow evalúa y publica **la imagen construida en el mismo job**, nunca una reconstrucción. Toda imagen nueva pasa otra vez por Trivy y Conftest antes de aprobarse.
 
 ## Caso negativo: una comprobación obligatoria fallida impide publicar
 
-Hoy el **backend** tiene 9 vulnerabilidades HIGH corregibles (`multer`, `body-parser`, `lodash`; `HAL-04`, pendiente de la decisión `EXC-03`; ver [`03-evidencia-conftest-trivy.md`](./03-evidencia-conftest-trivy.md)). Por eso:
+Hasta la aprobación de `EXC-03`, el **backend** tenía 9 vulnerabilidades HIGH corregibles (`multer`, `body-parser`, `lodash`; `HAL-04`; ver [`03-evidencia-conftest-trivy.md`](./03-evidencia-conftest-trivy.md)). La simulación de `6796523` (evidencia vigente arriba) se ejecutó **antes** de la excepción. En ese estado:
 
 - **En GitHub Actions:** el job `3.3` de `container-supply-chain.yml` falla, el `workflow_run` de contenedores no termina en `success` y `release-deploy.yml` **ni siquiera arranca**. Si arrancara (p. ej. por el otro disparador), `required-checks` vería `3.3` en `failure` y fallaría sin publicar.
 - **En la simulación local:** la compuerta marca el backend como `BLOCKED` ("Una comprobación obligatoria falló (Trivy image: FAIL…); no se publica") y solo publica el frontend.
 
-Resultado esperado tras aprobar `EXC-03` (o corregir las dependencias): el backend pasa la compuerta y se publican ambas imágenes.
+**Después de la excepción:** Billy Ugalde aprobó `EXC-03` (commit `6e22a07`, vence `2026-12-15`) y se aplica con `.trivyignore.yaml` (9 CVE, por paquete y versión exactos). El backend pasa la compuerta (0 HIGH/CRITICAL restantes, 9 suprimidas y visibles en el reporte) y se pueden publicar ambas imágenes. La regla sigue igual: si la excepción vence (`expired_at`) o aparece otra CVE, la compuerta vuelve a bloquear la publicación. Las vulnerabilidades están **aceptadas temporalmente, no corregidas**.
 
 ## Simulación local (evidencia de la mecánica)
 
@@ -121,16 +121,18 @@ Resultado esperado tras aprobar `EXC-03` (o corregir las dependencias): el backe
 
 ## `deploy/last-approved-release.json` (Roberto, `6.6`)
 
-Ese archivo (no modificado) contiene **digests ficticios**: `sha256:9e06aae000…0001` y `…0002`. Cuando el workflow publique un candidato real, Roberto puede reemplazarlos con los valores `backend_image` / `frontend_image` del artefacto `release-candidate-<sha>`, que ya vienen en formato `docker.io/<usuario>/<repo>@sha256:…`. Así su rollback (`6.6`) apuntará a imágenes que existen y que pasaron la compuerta.
+Ese archivo (no modificado) contiene **digests ficticios**: `sha256:9e06aae000…0001` y `…0002`. Cuando el workflow publique un candidato real, Roberto puede reemplazarlos con los valores `backend_image` / `frontend_image` del artefacto `release-candidate-<sha>`, que ya vienen en formato `docker.io/elrobb/proyecto-seguridad-<c>@sha256:…`. Así su rollback (`6.6`) apuntará a imágenes que existen y que pasaron la compuerta.
 
 ## Limitaciones y dependencias pendientes
 
-- **Ejecución real en Docker Hub pendiente de Roberto:**
-  - la rama **`development` no existe** en `origin` (solo `main`);
-  - los secretos **`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` no están configurados** (`SEC-03`; `gh api …/actions/secrets` → `total_count: 0`).
-  - Hasta entonces la evidencia es la simulación local y la validación del workflow (actionlint + prueba de la compuerta de checks).
+- **Dependencias de Roberto: resueltas** (verificado el 2026-11-12):
+  - la rama `development` existe en `origin`;
+  - los secretos `DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN` están configurados (`gh api …/actions/secrets` lista ambos nombres; los valores no son visibles);
+  - los 4 checks `3.1`–`3.4` son obligatorios en `main` (`gh pr checks 6 --required`).
+  - Las imágenes se publicarán en la cuenta **`elrobb`**: `docker.io/elrobb/proyecto-seguridad-backend` y `docker.io/elrobb/proyecto-seguridad-frontend`.
+- **Ejecución real en Docker Hub aún pendiente:** requiere que `release-deploy.yml` esté en `main` y un push a `main`/`development` con los 4 checks en `success`. Hasta entonces la evidencia es la simulación local y la validación del workflow (actionlint + prueba de la compuerta de checks).
 - **`workflow_run` solo funciona desde `main`:** GitHub usa la versión del workflow de la rama por defecto. `release-deploy.yml` debe estar fusionado en `main` para dispararse, incluso para pushes a `development`.
-- **Bloqueado por `HAL-04`:** mientras no se resuelvan `HAL-04`/`EXC-03`, `3.3` falla y no se publica nada en `main`/`development`. Es el comportamiento correcto.
+- **Depende de `EXC-03`:** con la excepción vigente `3.3` puede pasar. Si vence (`2026-12-15`) sin que `HAL-04` se corrija, `3.3` vuelve a fallar y no se publica nada en `main`/`development`. Es el comportamiento correcto.
 - **El nombre de usuario de Docker Hub es un secreto (`SEC-03`):** GitHub lo enmascara (`***`) en los logs y en los nombres de imagen que aparecen ahí. El artefacto JSON sí lo contiene, porque es necesario para desplegar.
 - **Re-escaneo en el job de publicación:** las vulnerabilidades se evalúan con la base de Trivy del momento. Una imagen aprobada en `3.3` podría fallar minutos después si se publica una CVE nueva; el job falla y no publica, como corresponde.
 - **Diferencias de la simulación:** usa HTTP sin TLS sobre loopback y no tiene autenticación; no prueba el login ni los permisos del token de Docker Hub. Con el *containerd image store* de Docker Desktop, el image ID local es el digest del índice, y por eso coincide exactamente con el del registro.

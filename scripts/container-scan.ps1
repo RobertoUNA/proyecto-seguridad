@@ -33,6 +33,15 @@ Push-Location $Root
 $TrivyVersion = "0.76.2"
 $TrivyImage = "aquasec/trivy:${TrivyVersion}@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb"
 $CacheVolume = "proyecto-seguridad-trivy-cache"
+# Excepciones aprobadas (EXC-03 / HAL-04): .trivyignore.yaml de la raíz, con vencimiento (expired_at).
+# Sin el archivo no se suprime nada. TRIVY_IGNOREFILE permite probar otra copia (p. ej. el vencimiento).
+$IgnoreFile = if ($env:TRIVY_IGNOREFILE) { $env:TRIVY_IGNOREFILE } else { Join-Path $Root ".trivyignore.yaml" }
+$IgnoreMount = @(); $IgnoreArgs = @()
+if (Test-Path $IgnoreFile) {
+    $IgnoreMount = @("-v", "${IgnoreFile}:/config/.trivyignore.yaml:ro")
+    # --show-suppressed: las CVE exceptuadas siguen visibles en el JSON (ExperimentalModifiedFindings).
+    $IgnoreArgs = @("--ignorefile", "/config/.trivyignore.yaml", "--show-suppressed")
+}
 $Components = @("backend", "frontend")
 
 function Write-Step($msg) { Write-Host "`n=== $msg" -ForegroundColor Cyan }
@@ -107,8 +116,8 @@ try {
 
         Write-Step "3/4 Trivy image $($img.image) (HIGH,CRITICAL, --ignore-unfixed)"
         $imgReport = "trivy-image-$c-$Sha.json"
-        docker run --rm -v "${CacheVolume}:/root/.cache" -v "${work}:/work:ro" -v "${Reports}:/reports" `
-            $TrivyImage image --input "/work/$c.tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 `
+        docker run --rm -v "${CacheVolume}:/root/.cache" -v "${work}:/work:ro" -v "${Reports}:/reports" @IgnoreMount `
+            $TrivyImage image --input "/work/$c.tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 @IgnoreArgs `
             --quiet --format json --output "/reports/$imgReport"
         $code = $LASTEXITCODE
         $img.image_scan = switch ($code) { 0 { "PASS" } 1 { "FAIL" } default { "INCOMPLETE" } }
@@ -121,6 +130,13 @@ try {
             $img.vulnerabilities = [ordered]@{
                 critical = @($vulns | Where-Object Severity -eq "CRITICAL").Count
                 high     = @($vulns | Where-Object Severity -eq "HIGH").Count
+            }
+            # CVE suprimidas por una excepción aprobada: no bloquean, pero quedan registradas.
+            $supp = @($r.Results | ForEach-Object { $_.ExperimentalModifiedFindings } | Where-Object { $_ })
+            $img.suppressed = [ordered]@{
+                count = $supp.Count
+                ids   = @($supp | ForEach-Object { $_.Finding.VulnerabilityID } | Sort-Object)
+                statements = @($supp | ForEach-Object { $_.Statement } | Sort-Object -Unique)
             }
             docker run --rm -v "${Reports}:/reports:ro" $TrivyImage convert --format table "/reports/$imgReport"
         }
@@ -146,7 +162,8 @@ try {
         worktree_clean  = $worktreeClean
         scanned_at      = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
         trivy           = [ordered]@{ version = $ver.Version; image = $TrivyImage; vulnerability_db_updated_at = $ver.VulnerabilityDB.UpdatedAt }
-        policy          = "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas"
+        policy          = "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas, salvo excepciones aprobadas y vigentes de .trivyignore.yaml (se reportan como suprimidas)"
+        exceptions      = [ordered]@{ ignorefile = $(if ($IgnoreArgs.Count) { $(if ($env:TRIVY_IGNOREFILE) { $env:TRIVY_IGNOREFILE } else { ".trivyignore.yaml" }) } else { $null }) }
         config_scan     = [ordered]@{ targets = @("backend/Dockerfile", "frontend/Dockerfile", "docker-compose.yml"); report = "reports/$configReport"; blocking_findings = $configBlocking; result = $configStatus }
         images          = $images
         result          = $(if ($failed) { "FAILED" } else { "APPROVED" })

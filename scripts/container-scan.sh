@@ -51,7 +51,18 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 docker volume create "$CACHE_VOLUME" >/dev/null
 
-trivy() { docker run --rm -v "$CACHE_VOLUME:/root/.cache" -v "$(host_path "$WORK"):/work" -v "$(host_path "$REPORTS"):/reports" "$TRIVY_IMAGE" "$@"; }
+# Excepciones aprobadas (EXC-03 / HAL-04): .trivyignore.yaml de la raíz, con vencimiento (expired_at).
+# Sin el archivo no se suprime nada. TRIVY_IGNOREFILE permite probar otra copia (p. ej. el vencimiento).
+IGNOREFILE="${TRIVY_IGNOREFILE:-$ROOT/.trivyignore.yaml}"
+IGNORE_MOUNT=(); IGNORE_ARGS=(); IGNOREFILE_USED=""
+if [[ -f "$IGNOREFILE" ]]; then
+  IGNORE_MOUNT=(-v "$(host_path "$IGNOREFILE"):/config/.trivyignore.yaml:ro")
+  # --show-suppressed: las CVE exceptuadas siguen visibles en el JSON (ExperimentalModifiedFindings).
+  IGNORE_ARGS=(--ignorefile /config/.trivyignore.yaml --show-suppressed)
+  IGNOREFILE_USED="${TRIVY_IGNOREFILE:-.trivyignore.yaml}"
+fi
+
+trivy() { docker run --rm -v "$CACHE_VOLUME:/root/.cache" -v "$(host_path "$WORK"):/work" -v "$(host_path "$REPORTS"):/reports" "${IGNORE_MOUNT[@]}" "$TRIVY_IMAGE" "$@"; }
 step() { printf '\n=== %s\n' "$*"; }
 
 FAILED=0
@@ -99,7 +110,7 @@ for c in "${COMPONENTS[@]}"; do
   fi
 
   step "3/4 Trivy image ${name} (HIGH,CRITICAL, --ignore-unfixed)"
-  trivy image --input "/work/${c}.tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+  trivy image --input "/work/${c}.tar" --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "${IGNORE_ARGS[@]}" \
     --quiet --format json --output "/reports/trivy-image-${c}-${SHA}.json"
   case $? in 0) IMG_SCAN[$c]=PASS ;; 1) IMG_SCAN[$c]=FAIL ;; *) IMG_SCAN[$c]=INCOMPLETE ;; esac
   [[ -f "$REPORTS/trivy-image-${c}-${SHA}.json" ]] && trivy convert --format table "/reports/trivy-image-${c}-${SHA}.json"
@@ -120,7 +131,7 @@ TRIVY_VERSION_JSON="$(docker run --rm -v "$CACHE_VOLUME:/root/.cache" "$TRIVY_IM
 INSPECT_JSON="$WORK/inspect.json"
 docker image inspect "proyecto-seguridad-backend:sha-${SHA}" "proyecto-seguridad-frontend:sha-${SHA}" > "$INSPECT_JSON" 2>/dev/null || echo "[]" > "$INSPECT_JSON"
 
-export SHA WORKTREE_CLEAN TRIVY_IMAGE CONFIG_REPORT CONFIG_STATUS CONFIG_BLOCKING FAILED TRIVY_VERSION_JSON
+export SHA WORKTREE_CLEAN TRIVY_IMAGE CONFIG_REPORT CONFIG_STATUS CONFIG_BLOCKING FAILED TRIVY_VERSION_JSON IGNOREFILE_USED
 export BUILD_backend="${BUILD[backend]:-FAIL}" BUILD_frontend="${BUILD[frontend]:-FAIL}"
 export SCAN_backend="${IMG_SCAN[backend]:-INCOMPLETE}" SCAN_frontend="${IMG_SCAN[frontend]:-INCOMPLETE}"
 export SBOM_backend="${SBOM[backend]:-INCOMPLETE}" SBOM_frontend="${SBOM[frontend]:-INCOMPLETE}"
@@ -154,6 +165,11 @@ for c in ("backend", "frontend"):
         vulns = [v for r in report.get("Results") or [] for v in r.get("Vulnerabilities") or []]
         entry["vulnerabilities"] = {"critical": sum(v["Severity"] == "CRITICAL" for v in vulns),
                                     "high": sum(v["Severity"] == "HIGH" for v in vulns)}
+        # CVE suprimidas por una excepción aprobada: no bloquean, pero quedan registradas.
+        supp = [m for r in report.get("Results") or [] for m in r.get("ExperimentalModifiedFindings") or []]
+        entry["suppressed"] = {"count": len(supp),
+                               "ids": sorted((m.get("Finding") or {}).get("VulnerabilityID") for m in supp),
+                               "statements": sorted({m.get("Statement") for m in supp if m.get("Statement")})}
     images.append(entry)
 summary = {
     "item": "3.3", "controls": ["THR-05", "CTL-05"], "commit": sha,
@@ -161,7 +177,8 @@ summary = {
     "scanned_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "trivy": {"version": ver.get("Version"), "image": os.environ["TRIVY_IMAGE"],
               "vulnerability_db_updated_at": (ver.get("VulnerabilityDB") or {}).get("UpdatedAt")},
-    "policy": "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas",
+    "policy": "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas, salvo excepciones aprobadas y vigentes de .trivyignore.yaml (se reportan como suprimidas)",
+    "exceptions": {"ignorefile": os.environ.get("IGNOREFILE_USED") or None},
     "config_scan": {"targets": ["backend/Dockerfile", "frontend/Dockerfile", "docker-compose.yml"],
                     "report": f"reports/{os.environ['CONFIG_REPORT']}",
                     "blocking_findings": int(os.environ["CONFIG_BLOCKING"]), "result": os.environ["CONFIG_STATUS"]},

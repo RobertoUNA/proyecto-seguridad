@@ -4,7 +4,8 @@
 > **Responsable:** Brandon Corrales (`Brandon-Corrales`) · **Revisores:** Roberto (`3.3`), Billy (`3.4`)  
 > **Amenaza / control:** [`THR-05` / `CTL-05`](./01-planificacion-kb.md#3-amenazas-priorizadas-con-stride-ítem-13-y-plan-de-tratamiento-ítem-14) (Elevation of Privilege: contenedor como root, modo privilegiado o CVE conocidas). También apoya `THR-03` / `CTL-03` (sin secretos en imágenes ni en `docker-compose.yml`).  
 > **Commit analizado (evidencia vigente):** `36f2324d42820a864bc35197e2500afd5063254c` (commit que contiene los Dockerfiles, `docker-compose.yml` y los scripts de este ítem).  
-> **Estado:** **antes de la excepción** → `FAILED` por 9 HIGH en la imagen del backend (ver [hallazgo pendiente](#hallazgo-pendiente-dependencias-del-backend-fijadas-por-nestjs-10)). Resultado esperado tras aprobar `EXC-03`: `APPROVED` (todo en `PASS`).
+> **Estado actual:** **después de la excepción** → `APPROVED`. `EXC-03` fue aprobada por Billy Ugalde (`REGISTRO-HALLAZGOS.md`, commit `6e22a07`) y se aplica con [`.trivyignore.yaml`](../../.trivyignore.yaml). El backend pasa con **9 CVE suprimidas y 0 HIGH/CRITICAL restantes** (ver [después de la excepción](#después-de-la-excepción-exc-03-aprobada)). *Reportes oficiales: se generan sobre el commit que contiene el archivo de excepción.*  
+> **Estado anterior (`36f2324`):** **antes de la excepción** → `FAILED` por 9 HIGH en la imagen del backend (ver [hallazgo HAL-04](#hallazgo-pendiente-dependencias-del-backend-fijadas-por-nestjs-10)).
 
 ---
 
@@ -105,7 +106,37 @@ Para un mismo SHA, todos los artefactos se pueden cruzar entre sí:
 
 **Resultado esperado tras aprobar `EXC-03`:** las 9 CVE de `HAL-04` se suprimirían solo mediante un `.trivyignore.yaml` con `expired_at: 2026-12-15`. Así `Trivy image backend` pasaría a `PASS` y el global a `APPROVED`. Las demás compuertas (config, frontend, SBOM) ya están en `PASS`. Al vencer la fecha, Trivy vuelve a reportarlas y el workflow vuelve a fallar; el vencimiento lo hace cumplir la propia herramienta. Si en vez de excepción se corrigen las dependencias, el resultado esperado es el mismo, pero sin supresiones.
 
+### Después de la excepción (EXC-03 aprobada)
+
+**Decisión humana registrada:** Billy Ugalde aprobó `EXC-03` y registró `HAL-04` en `REGISTRO-HALLAZGOS.md` (commit `6e22a07`), con vencimiento `2026-12-15`. Se tomó la opción 2 (excepción temporal); la corrección de dependencias sigue pendiente en `HAL-04`.
+
+**Cómo se aplica:**
+- [`.trivyignore.yaml`](../../.trivyignore.yaml) contiene **únicamente las 9 CVE de `HAL-04`**. Cada una lleva:
+  - `purls` con el paquete y la versión exactos (`pkg:npm/multer@2.0.2`, `pkg:npm/body-parser@1.20.4`, `pkg:npm/lodash@4.17.21`);
+  - un `statement` que cita `HAL-04 / EXC-03` y la aprobación de `Billy-Ugalde (6e22a07)`;
+  - `expired_at: 2026-12-15`.
+- `scripts/container-scan.ps1` / `.sh` pasan `--ignorefile .trivyignore.yaml --show-suppressed` **solo a Trivy image**. Así lo usan todas las ejecuciones: el workflow `container-supply-chain.yml` (`3.3`), la compuerta final de `release-deploy.yml` (`5.5`), `scripts/release-local-sim.ps1` y `agent-verify -Full`, porque todos llaman a `container-scan`.
+- Sin el archivo no se suprime nada. Trivy `0.76.2` admite este formato YAML, `expired_at` y `--show-suppressed` (verificado con `trivy image --help` y ejecución real).
+- El resumen `container-scan-<sha>.json` registra `exceptions.ignorefile` y, por imagen, `suppressed` (cantidad, CVE y `statement`). El JSON de Trivy conserva las 9 en `ExperimentalModifiedFindings` (`Status: ignored`): **siguen visibles**, no desaparecen.
+
+**Verificación (antes del commit, mismo contenido de archivos):**
+
+| Prueba | Backend | Global |
+| :--- | :--- | :--- |
+| Excepción **vigente** (`.trivyignore.yaml` del repo), `.ps1` y `.sh` | `PASS`: **0 HIGH / 0 CRITICAL restantes, 9 suprimidas** (exactamente `CVE-2026-111181`, `-113872`, `-2359`, `-3304`, `-3520`, `-4800`, `-5079`, `-77078`, `-82333`) | `APPROVED` (exit 0) |
+| **Vencimiento:** copia temporal fuera del repo con `expired_at: 2026-11-01` (`TRIVY_IGNOREFILE=<copia>`) | `FAIL`: **9 HIGH**, 0 suprimidas; vuelven a bloquear las mismas 9 CVE | `FAILED` (exit 1) |
+| **Alcance por paquete:** copia temporal con `pkg:npm/multer@2.0.1` en vez de `2.0.2` | `FAIL`: las **7 de `multer`** vuelven a bloquear; solo quedan suprimidas las 2 que coinciden exactamente (`body-parser`, `lodash`) | — |
+
+La excepción no oculta nada más:
+- solo cubre esas CVE en ese paquete y versión;
+- si se actualiza la dependencia o aparece otra CVE, Trivy la reporta;
+- al vencer, el propio Trivy vuelve a fallar sin intervención.
+
+**Las vulnerabilidades siguen existiendo:** están **aceptadas temporalmente, no corregidas**. La imagen del backend sigue conteniendo `multer 2.0.2`, `body-parser 1.20.4` y `lodash 4.17.21`. El riesgo se acepta por la justificación de `EXC-03` (API solo `GET`, sin subida de archivos, sin cuerpos comprimidos y sin `_.template`) y por la mitigación compensatoria (contenedor no root, `read_only`, `cap_drop: ALL`). El cierre de `HAL-04` exige corregir las dependencias antes de `2026-12-15` (`overrides` o NestJS 11) y quitar entonces las entradas de `.trivyignore.yaml`.
+
 ### Hallazgo pendiente: dependencias del backend fijadas por NestJS 10
+
+> **Actualización:** este hallazgo quedó registrado como `HAL-04` y la excepción `EXC-03` fue aprobada por Billy Ugalde (commit `6e22a07`, vence `2026-12-15`). Ver [después de la excepción](#después-de-la-excepción-exc-03-aprobada). El texto siguiente se conserva como registro de la situación previa a la decisión.
 
 | CVE | Paquete (instalado → corregido) | Llega por |
 | :--- | :--- | :--- |
