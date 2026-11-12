@@ -57,6 +57,12 @@ services:
       DB_NAME: seguridad_vial_db
       DB_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD como variable de entorno de la sesion}
       PORT: "3000"
+      # Ítem 7.2: sal del hash del actor_id en los eventos de seguridad (secreto; solo desde el entorno).
+      # Si está vacía, el backend usa una sal aleatoria por proceso (actor_id no correlacionable entre reinicios).
+      LOG_ACTOR_SALT: ${LOG_ACTOR_SALT:-}
+      # Proxy de confianza para el actor_id (equivale a trust proxy = 1): X-Forwarded-For solo se usa
+      # si la conexión viene del contenedor `frontend` (nginx, que la sobrescribe con $remote_addr).
+      LOG_TRUSTED_PROXY: frontend
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000"
     depends_on:
