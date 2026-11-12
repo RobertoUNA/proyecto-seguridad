@@ -3,9 +3,23 @@
 > **Ítems:** `3.3` (imagen candidata, Trivy y SBOM) · `3.4` (políticas Conftest + OPA/Rego)  
 > **Responsable:** Brandon Corrales (`Brandon-Corrales`) · **Revisores:** Roberto (`3.3`), Billy (`3.4`)  
 > **Amenaza / control:** [`THR-05` / `CTL-05`](./01-planificacion-kb.md#3-amenazas-priorizadas-con-stride-ítem-13-y-plan-de-tratamiento-ítem-14) (Elevation of Privilege: contenedor como root, modo privilegiado o CVE conocidas). También apoya `THR-03` / `CTL-03` (sin secretos en imágenes ni en `docker-compose.yml`).  
-> **Commit analizado (evidencia vigente):** `36f2324d42820a864bc35197e2500afd5063254c` (commit que contiene los Dockerfiles, `docker-compose.yml` y los scripts de este ítem).  
-> **Estado actual:** **después de la excepción** → `APPROVED`. `EXC-03` fue aprobada por Billy Ugalde (`REGISTRO-HALLAZGOS.md`, commit `6e22a07`) y se aplica con [`.trivyignore.yaml`](../../.trivyignore.yaml). El backend pasa con **9 CVE suprimidas y 0 HIGH/CRITICAL restantes** (ver [después de la excepción](#después-de-la-excepción-exc-03-aprobada)). *Reportes oficiales: se generan sobre el commit que contiene el archivo de excepción.*  
-> **Estado anterior (`36f2324`):** **antes de la excepción** → `FAILED` por 9 HIGH en la imagen del backend (ver [hallazgo HAL-04](#hallazgo-pendiente-dependencias-del-backend-fijadas-por-nestjs-10)).
+> **Commit analizado (evidencia vigente):** `15c7b8b9c3dfd714793fc8b66d1a3c0779208a58` (commit `feat(ssdlc): aplicar EXC-03 con .trivyignore.yaml …`), árbol limpio (`worktree_clean: true`).  
+> **Estado actual:** **después de la excepción** → `APPROVED`. `EXC-03` fue aprobada por Billy Ugalde (`REGISTRO-HALLAZGOS.md`, commit `6e22a07`) y se aplica con [`.trivyignore.yaml`](../../.trivyignore.yaml). Resultado del 2026-11-12T19:08:27Z, BD de Trivy del 2026-11-12T12:59Z:
+> - **backend:** `PASS`, 0 HIGH / 0 CRITICAL restantes, **exactamente 9 CVE suprimidas** (las de `HAL-04`);
+> - **frontend:** `PASS`, 0 suprimidas;
+> - Trivy config `PASS`; SBOM de backend y frontend `PASS`.
+>
+> Ver [después de la excepción](#después-de-la-excepción-exc-03-aprobada).
+>
+> **Reportes vigentes:**
+> - [`reports/container-scan-15c7b8b….json`](../../reports/container-scan-15c7b8b9c3dfd714793fc8b66d1a3c0779208a58.json)
+> - [`reports/trivy-config-15c7b8b….json`](../../reports/trivy-config-15c7b8b9c3dfd714793fc8b66d1a3c0779208a58.json)
+> - [`reports/trivy-image-backend-15c7b8b….json`](../../reports/trivy-image-backend-15c7b8b9c3dfd714793fc8b66d1a3c0779208a58.json) (las 9 CVE en `ExperimentalModifiedFindings`, `Status: ignored`)
+> - [`reports/trivy-image-frontend-15c7b8b….json`](../../reports/trivy-image-frontend-15c7b8b9c3dfd714793fc8b66d1a3c0779208a58.json)
+> - [`reports/sbom-backend-15c7b8b….cdx.json`](../../reports/sbom-backend-15c7b8b9c3dfd714793fc8b66d1a3c0779208a58.cdx.json)
+> - [`reports/sbom-frontend-15c7b8b….cdx.json`](../../reports/sbom-frontend-15c7b8b9c3dfd714793fc8b66d1a3c0779208a58.cdx.json)
+>
+> **Estado anterior (`36f2324`, reportes `*-36f2324….json`):** **antes de la excepción** → `FAILED` por 9 HIGH en la imagen del backend (ver [hallazgo HAL-04](#hallazgo-pendiente-dependencias-del-backend-fijadas-por-nestjs-10)). Se conservan como evidencia del bloqueo.
 
 ---
 
