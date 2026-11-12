@@ -49,7 +49,11 @@ conftest() { docker run --rm -v "$(host_path "$ROOT"):/project:ro" -w /project "
 
 # Cada ejecución JSON se guarda en $WORK para evaluarla después con Python.
 echo; echo "=== 1/3 conftest verify (pruebas unitarias de policy/container.rego)"
-conftest verify --policy policy --output json --no-color > "$WORK/verify.json" 2>&1
+# Descarga explícita de la imagen: en un runner limpio, el progreso del pull (stderr) no debe
+# mezclarse con la salida JSON ni con el texto de la demostración.
+docker pull -q "$CONFTEST_IMAGE" >/dev/null 2>"$WORK/pull.err" || cat "$WORK/pull.err" >&2
+# stdout (JSON) y stderr en archivos separados: solo stdout se interpreta como JSON.
+conftest verify --policy policy --output json --no-color > "$WORK/verify.json" 2>"$WORK/verify.err"
 conftest verify --policy policy --no-color | tail -n 1
 
 i=0
@@ -59,7 +63,7 @@ for group in ALLOWED INSECURE; do
   else echo; echo "=== 3/3 conftest test sobre ejemplos INSEGUROS (deben ser rechazados)"; fi
   for e in "${list[@]}"; do
     parser="${e%%:*}"; file="${e#*:}"
-    conftest test --policy policy --parser "$parser" --output json --no-color "$file" > "$WORK/$group.$i.json" 2>&1
+    conftest test --policy policy --parser "$parser" --output json --no-color "$file" > "$WORK/$group.$i.json" 2>"$WORK/$group.$i.err"
     printf '%s\t%s\t%s\n' "$group" "$parser" "$file" >> "$WORK/index.tsv"
     conftest test --policy policy --parser "$parser" --no-color "$file"
     echo "(exit code $?)"
@@ -105,8 +109,13 @@ def load(path):
         with open(path, encoding="utf-8") as f:
             return json.load(f), None
     except Exception:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            return None, f.read().strip()
+        # Diagnóstico: stdout que no es JSON + stderr de esa misma ejecución (archivo .err).
+        text = ""
+        for p in (path, path[:-5] + ".err"):
+            if os.path.exists(p):
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    text += f.read()
+        return None, text.strip()
 
 v, verr = load(os.path.join(work, "verify.json"))
 verify = {"result": "INCOMPLETE", "tests": 0, "passed": 0, "failed": 0}

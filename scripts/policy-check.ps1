@@ -41,9 +41,16 @@ $Insecure = @(
     @{ parser = "yaml";       file = "policy/examples/docker-compose.insecure.yml" }
 )
 
+# stdout y stderr por separado: `out` (solo stdout) es lo que se interpreta como JSON; `text`
+# (stdout + stderr) se usa para la demostración y el diagnóstico. Así el progreso de un `docker pull`
+# en un runner limpio no invalida el JSON.
 function Invoke-Conftest([string[]]$ConftestArgs) {
-    $out = docker run --rm -v "${Root}:/project:ro" -w /project $ConftestImage @ConftestArgs 2>&1 | Out-String
-    return @{ exit = $LASTEXITCODE; text = $out }
+    $errFile = [System.IO.Path]::GetTempFileName()
+    $out = docker run --rm -v "${Root}:/project:ro" -w /project $ConftestImage @ConftestArgs 2>$errFile | Out-String
+    $code = $LASTEXITCODE
+    $err = (Get-Content $errFile -Raw -ErrorAction SilentlyContinue) -replace '(?m)^docker : ', ''
+    Remove-Item $errFile -Force -ErrorAction SilentlyContinue
+    return @{ exit = $code; out = $out; text = ($out + $err) }
 }
 
 # Ejecuta `conftest test --output json` sobre un archivo y resume el resultado.
@@ -51,7 +58,7 @@ function Test-File($entry) {
     $r = Invoke-Conftest @("test", "--policy", "policy", "--parser", $entry.parser, "--output", "json", "--no-color", $entry.file)
     $res = [ordered]@{ file = $entry.file; parser = $entry.parser; executed = $false; successes = 0; failures = @(); warnings = @() }
     try {
-        $j = $r.text | ConvertFrom-Json
+        $j = $r.out | ConvertFrom-Json
         $res.executed = $true
         foreach ($x in @($j | ForEach-Object { $_ })) {
             $res.successes += [int]$x.successes
@@ -72,7 +79,9 @@ try {
     $dirty = @(git status --porcelain -- policy backend/Dockerfile frontend/Dockerfile docker-compose.yml)
     if ($dirty.Count -gt 0) { Write-Host "[AVISO] Hay cambios sin confirmar en los archivos verificados: el reporte no describe exactamente el commit $Sha." -ForegroundColor Yellow }
 
-    $version = (Invoke-Conftest @("--version")).text.Trim() -replace "\r?\n", " / "
+    # Descarga explícita de la imagen antes de cualquier ejecución (runner limpio).
+    docker pull -q $ConftestImage *> $null
+    $version = (Invoke-Conftest @("--version")).out.Trim() -replace "\r?\n", " / "
 
     # ------------------------------------------------------------ 1. verify
     Write-Host "`n=== 1/3 conftest verify (pruebas unitarias de policy/container.rego)" -ForegroundColor Cyan
@@ -80,7 +89,7 @@ try {
     $verify = [ordered]@{ result = "INCOMPLETE"; tests = 0; passed = 0; failed = 0 }
     try {
         # En PowerShell 5.1 ConvertFrom-Json emite el arreglo como UN objeto: se enumera explícitamente.
-        $parsed = $v.text | ConvertFrom-Json
+        $parsed = $v.out | ConvertFrom-Json
         $vj = @($parsed | ForEach-Object { $_ })
         $verify.tests = $vj.Count
         $verify.failed = @($vj | Where-Object { @($_.failures | Where-Object { $_ }).Count -gt 0 }).Count
