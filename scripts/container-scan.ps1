@@ -154,7 +154,9 @@ try {
     $summaryPath = Join-Path $Reports "container-scan-$Sha.json"
     # UTF-8 sin BOM para que jq/python lo lean sin problemas.
     [System.IO.File]::WriteAllText($summaryPath, ($summary | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding($false)))
-    Write-Step "Resultado: $($summary.result)  ->  reports/container-scan-$Sha.json"
+    # Carpeta real de los reportes (relativa al repo si está dentro; si no, ruta completa).
+    $shown = if ($Reports.StartsWith($Root)) { $Reports.Substring($Root.Length).TrimStart([char[]]@('\', '/')).Replace('\', '/') } else { $Reports }
+    Write-Step "Resultado: $($summary.result)  ->  $shown/container-scan-$Sha.json"
     if ($failed) { exit 1 }
     exit 0
 }

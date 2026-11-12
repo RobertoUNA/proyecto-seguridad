@@ -124,6 +124,8 @@ export SHA WORKTREE_CLEAN TRIVY_IMAGE CONFIG_REPORT CONFIG_STATUS CONFIG_BLOCKIN
 export BUILD_backend="${BUILD[backend]:-FAIL}" BUILD_frontend="${BUILD[frontend]:-FAIL}"
 export SCAN_backend="${IMG_SCAN[backend]:-INCOMPLETE}" SCAN_frontend="${IMG_SCAN[frontend]:-INCOMPLETE}"
 export SBOM_backend="${SBOM[backend]:-INCOMPLETE}" SBOM_frontend="${SBOM[frontend]:-INCOMPLETE}"
+# Carpeta real de los reportes para el mensaje final (relativa al repo si está dentro).
+export REPORTS_SHOWN="${REPORTS#"$ROOT"/}"
 "$PYTHON" - "$(host_path "$REPORTS")" "$(host_path "$INSPECT_JSON")" <<'PY'
 import datetime, json, os, sys
 reports, inspect_path = sys.argv[1], sys.argv[2]
@@ -168,7 +170,7 @@ summary = {
 }
 with open(os.path.join(reports, f"container-scan-{sha}.json"), "w", encoding="utf-8") as f:
     json.dump(summary, f, indent=2, ensure_ascii=False)
-print(f"\n=== Resultado: {summary['result']}  ->  reports/container-scan-{sha}.json")
+print(f"\n=== Resultado: {summary['result']}  ->  {os.environ['REPORTS_SHOWN']}/container-scan-{sha}.json")
 PY
 
 exit "$FAILED"

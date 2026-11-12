@@ -201,6 +201,8 @@ En `01-planificacion-kb.md`, fila `THR-05`, columna **Componente Afectado** y **
 
 - **Roberto (`6.5`):** `scripts/smoke-test.ps1` y `.sh` escriben por defecto en `reports/smoke-test-report.json`, que está versionado. Una ejecución local sin `-ReportPath` sobrescribe la evidencia original (me pasó y lo restauré con `git checkout`). Sugerencia: nombre por SHA o fecha por defecto.
 
+> **Cambio posterior (2026-11-12):** se corrigió **solo el texto del mensaje final** de `scripts/container-scan.ps1` / `.sh`, que ahora muestra la carpeta real de los reportes (la alternativa, `-ReportDir` / `REPORT_DIR`, o `reports/`) en vez de siempre `reports/`. No cambian el análisis, los umbrales, los códigos de salida ni los nombres de archivo, y la evidencia ya generada (`reports/*-36f2324….json`, `*-f045577….json`) no se ve afectada.
+
 ---
 
 ## 3.4 — Políticas con Conftest + OPA/Rego
