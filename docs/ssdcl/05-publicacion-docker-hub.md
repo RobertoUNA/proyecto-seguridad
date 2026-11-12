@@ -2,7 +2,11 @@
 
 > **Ítem:** `5.5` · **Responsable:** Brandon Corrales (`Brandon-Corrales`) · **Revisor:** Roberto (`RobertoUNA`)  
 > **Relación con la KB:** `EXT-06` (Docker Hub), `SEC-03` (`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`), `THR-05` / `CTL-05` (solo se publica lo que pasó Trivy y Conftest), `SEC-05` (permisos mínimos del `GITHUB_TOKEN`).  
-> **Evidencia de la mecánica:** `reports/release-local-sim-<sha>.json` (simulación local). *SHA pendiente: se genera tras el commit.*
+> **Commit analizado (evidencia vigente):** `67965235342d27bd4f53dc118f3a62a3d78785d0` (commit `feat(ssdlc): item 5.5 …`), árbol limpio (`worktree_clean: true`).  
+> **Evidencia de la mecánica:** [`reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json`](../../reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json) (simulación local, 2026-11-12T03:46:13Z).
+> - **Backend `BLOCKED`:** Trivy image `FAIL`, 9 HIGH (caso negativo).
+> - **Frontend `PUBLISHED`** como `localhost:5055/proyecto-seguridad-frontend@sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed`. El digest del registro, el de `imagetools`, el image ID antes y el image ID tras el pull por digest son iguales.
+> - **Limpieza:** `mechanics_verified: true`, `registry_removed: true`, 0 imágenes `localhost:5055` restantes y la lista de contenedores idéntica antes y después.
 
 ## Archivos
 
