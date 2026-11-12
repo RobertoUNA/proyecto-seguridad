@@ -37,6 +37,13 @@ done
 host_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 export MSYS_NO_PATHCONV=1
 
+# Trazabilidad: si lo analizado tiene cambios sin confirmar, el SHA no describe la imagen.
+WORKTREE_CLEAN=true
+if [[ -n "$(git status --porcelain -- backend frontend docker-compose.yml)" ]]; then
+  WORKTREE_CLEAN=false
+  echo "[AVISO] Hay cambios sin confirmar en backend/, frontend/ o docker-compose.yml: los reportes NO describen exactamente el commit ${SHA}." >&2
+fi
+
 REPORTS="$ROOT/reports"
 mkdir -p "$REPORTS"
 WORK="$(mktemp -d)"
@@ -112,7 +119,7 @@ TRIVY_VERSION_JSON="$(docker run --rm -v "$CACHE_VOLUME:/root/.cache" "$TRIVY_IM
 INSPECT_JSON="$WORK/inspect.json"
 docker image inspect "proyecto-seguridad-backend:sha-${SHA}" "proyecto-seguridad-frontend:sha-${SHA}" > "$INSPECT_JSON" 2>/dev/null || echo "[]" > "$INSPECT_JSON"
 
-export SHA TRIVY_IMAGE CONFIG_REPORT CONFIG_STATUS CONFIG_BLOCKING FAILED TRIVY_VERSION_JSON
+export SHA WORKTREE_CLEAN TRIVY_IMAGE CONFIG_REPORT CONFIG_STATUS CONFIG_BLOCKING FAILED TRIVY_VERSION_JSON
 export BUILD_backend="${BUILD[backend]:-FAIL}" BUILD_frontend="${BUILD[frontend]:-FAIL}"
 export SCAN_backend="${IMG_SCAN[backend]:-INCOMPLETE}" SCAN_frontend="${IMG_SCAN[frontend]:-INCOMPLETE}"
 export SBOM_backend="${SBOM[backend]:-INCOMPLETE}" SBOM_frontend="${SBOM[frontend]:-INCOMPLETE}"
@@ -147,6 +154,7 @@ for c in ("backend", "frontend"):
     images.append(entry)
 summary = {
     "item": "3.3", "controls": ["THR-05", "CTL-05"], "commit": sha,
+    "worktree_clean": os.environ["WORKTREE_CLEAN"] == "true",
     "scanned_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "trivy": {"version": ver.get("Version"), "image": os.environ["TRIVY_IMAGE"],
               "vulnerability_db_updated_at": (ver.get("VulnerabilityDB") or {}).get("UpdatedAt")},

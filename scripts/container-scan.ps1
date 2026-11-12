@@ -40,6 +40,13 @@ try {
     if (-not $Sha) { $Sha = (git rev-parse HEAD).Trim() }
     if ($Sha -notmatch '^[0-9a-f]{7,40}$') { throw "SHA inválido: '$Sha'" }
 
+    # Trazabilidad: si lo analizado tiene cambios sin confirmar, el SHA no describe la imagen.
+    $dirty = @(git status --porcelain -- backend frontend docker-compose.yml)
+    $worktreeClean = ($dirty.Count -eq 0)
+    if (-not $worktreeClean) {
+        Write-Host "[AVISO] Hay cambios sin confirmar en backend/, frontend/ o docker-compose.yml: los reportes NO describen exactamente el commit $Sha." -ForegroundColor Yellow
+    }
+
     $Reports = Join-Path $Root "reports"
     New-Item -ItemType Directory -Force $Reports | Out-Null
     $work = Join-Path ([System.IO.Path]::GetTempPath()) ("container-scan-" + [guid]::NewGuid().ToString("N"))
@@ -134,6 +141,7 @@ try {
         item            = "3.3"
         controls        = @("THR-05", "CTL-05")
         commit          = $Sha
+        worktree_clean  = $worktreeClean
         scanned_at      = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
         trivy           = [ordered]@{ version = $ver.Version; image = $TrivyImage; vulnerability_db_updated_at = $ver.VulnerabilityDB.UpdatedAt }
         policy          = "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas"

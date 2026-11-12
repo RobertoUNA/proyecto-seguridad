@@ -3,7 +3,8 @@
 > **Ítems:** `3.3` (imagen candidata, Trivy y SBOM) · `3.4` (políticas Conftest + OPA/Rego)  
 > **Responsable:** Brandon Corrales (`Brandon-Corrales`) · **Revisores:** Roberto (`3.3`), Billy (`3.4`)  
 > **Amenaza / control:** [`THR-05` / `CTL-05`](./01-planificacion-kb.md#3-amenazas-priorizadas-con-stride-ítem-13-y-plan-de-tratamiento-ítem-14) (Elevation of Privilege: contenedor como root, modo privilegiado o CVE conocidas). También apoya `THR-03` / `CTL-03` (sin secretos en imágenes ni en `docker-compose.yml`).  
-> **Commit analizado en esta evidencia:** `f045577b963deb228642ebf36963f39fb400fe2c`
+> **Commit analizado (evidencia vigente):** `36f2324d42820a864bc35197e2500afd5063254c` (commit que contiene los Dockerfiles, `docker-compose.yml` y los scripts de este ítem).  
+> **Estado:** **antes de la excepción** → `FAILED` por 9 HIGH en la imagen del backend (ver [hallazgo pendiente](#hallazgo-pendiente-dependencias-del-backend-fijadas-por-nestjs-10)). Resultado esperado tras aprobar `EXC-03`: `APPROVED` (todo en `PASS`).
 
 ---
 
@@ -43,6 +44,15 @@ Obtenidos con `docker pull <imagen>` + `docker inspect --format '{{index .RepoDi
 | Datos ficticios | Migraciones `001..004` + `seed_test.sql` montadas archivo por archivo en `/docker-entrypoint-initdb.d` (no se oculta el `10_postgis.sh` de la imagen) | Smoke test 6: `SAN JOSÉ` desde la semilla |
 | Logs con rotación (base de `7.2`) | `logging: json-file`, `max-size: 10m`, `max-file: 5` en los tres servicios | `docker inspect --format '{{.HostConfig.LogConfig}}'` |
 
+### Por qué existen dos juegos de reportes (`f045577` y `36f2324`)
+
+| SHA | Qué es | Validez como evidencia |
+| :--- | :--- | :--- |
+| `f045577` | `HEAD` de la rama **antes** del commit del ítem. Los scripts usan `git rev-parse HEAD` por defecto y la primera ejecución se hizo con los archivos aún sin confirmar. | **Histórica**: muestra el desarrollo (hallazgos iniciales y correcciones), pero ese commit **no contiene** los Dockerfiles analizados, así que no sirve para ligar imagen y commit. No se borra para no reescribir evidencia. |
+| `36f2324` | Commit `feat(ssdlc): item 3.3 …`, que sí contiene todo lo analizado. Se re-ejecutó `scripts/container-scan.ps1` sobre él y se volvió a levantar el stack con `COMMIT_SHA=36f2324…`. | **Vigente**: es la que se cita en este documento. |
+
+Lección aplicada: el análisis se ejecuta **sobre un commit ya confirmado** y no sobre el árbol de trabajo. En CI no puede pasar, porque el workflow hace checkout del SHA exacto. Para la ejecución local, los scripts registran `worktree_clean` en `container-scan-<sha>.json` y avisan si `backend/`, `frontend/` o `docker-compose.yml` tienen cambios sin confirmar (el reporte vigente se generó con el árbol limpio; el campo se agregó después, por eso no aparece en él).
+
 ### Qué se escanea y qué bloquea
 
 | Modo Trivy | Objetivo | Umbral que bloquea (exit ≠ 0) | Reporte |
@@ -62,14 +72,14 @@ Para un mismo SHA, todos los artefactos se pueden cruzar entre sí:
 1. **Nombre:** cada reporte lleva el SHA completo (`*-<sha>.json`) y la imagen se etiqueta `sha-<sha>`.
 2. **Etiqueta OCI dentro de la imagen:** `org.opencontainers.image.revision=<sha>` (`--label` en el build y `LABEL` en el Dockerfile). El backend además expone `COMMIT_SHA` en `GET /api/health`.
 3. **SBOM:** Trivy copia en `metadata.component.properties` el `RepoTag`, el `ImageID` y la etiqueta `revision`. Ejemplo del backend:
-   `aquasecurity:trivy:RepoTag = proyecto-seguridad-backend:sha-f045577b…` · `aquasecurity:trivy:Labels:org.opencontainers.image.revision = f045577b…`.
+   `aquasecurity:trivy:RepoTag = proyecto-seguridad-backend:sha-36f2324d…` · `aquasecurity:trivy:Labels:org.opencontainers.image.revision = 36f2324d…`.
 4. **`reports/container-scan-<sha>.json`:** lista `commit`, `image`, `image_id`, `repo_digests`, `config_digest`, `revision_label`, la versión de Trivy y la fecha de su BD, el resultado de cada paso y el resultado global.
 
 > **`image_id` vs `config_digest`:** con el *containerd image store* de Docker Desktop, `image_id` es el digest del índice local, que **cambia en cada build** porque la atestación de *provenance* incluye la fecha. `config_digest` (el `ImageID` que Trivy registra en el reporte y en el SBOM) es estable para el mismo contenido: en dos builds del mismo commit cambió el índice (`47b577…` → `a91bb4…`) y el config se mantuvo (`69404fd6…`). Ninguno de los dos es el digest del registro: el que usa el despliegue (`docker.io/...@sha256:…`) se obtiene al publicar en el ítem `5.5`. Allí la imagen se construye **una sola vez**, se re-escanea y se publica esa misma imagen.
 
-### Resultados obtenidos (commit `f045577b`)
+### Resultados obtenidos
 
-**Primera ejecución (antes de corregir):**
+**Primera ejecución (desarrollo, reportes `f045577`, antes de corregir):**
 
 | Imagen | HIGH/CRITICAL corregibles | Origen |
 | :--- | :---: | :--- |
@@ -81,7 +91,7 @@ Para un mismo SHA, todos los artefactos se pueden cruzar entre sí:
 - **Backend:** después de `npm ci --omit=dev` se eliminan `npm`, `npx`, `corepack` y `yarn` del runtime. No se usan para ejecutar `node dist/main.js` y eran el origen de todos los hallazgos de herramientas. También reduce la superficie (`CTL-05`).
 - **Frontend:** `apk upgrade --no-cache` como root solo durante el build, `apk del curl` (no se usa; el healthcheck usa `wget` de busybox) y vuelta a `USER 101`.
 
-**Ejecución final** (`reports/container-scan-f045577b963deb228642ebf36963f39fb400fe2c.json`):
+**Ejecución vigente: estado ANTES DE LA EXCEPCIÓN** (`reports/container-scan-36f2324d42820a864bc35197e2500afd5063254c.json`, 2026-11-12T00:22:11Z, BD de Trivy del 2026-11-11T19:04Z):
 
 | Paso | Resultado |
 | :--- | :--- |
@@ -89,8 +99,11 @@ Para un mismo SHA, todos los artefactos se pueden cruzar entre sí:
 | Trivy `config` | `PASS`. `backend/Dockerfile` y `frontend/Dockerfile`: 27 comprobaciones superadas, 0 fallidas. |
 | Trivy `image` frontend | `PASS` (0 HIGH, 0 CRITICAL) |
 | Trivy `image` backend | **`FAIL` (9 HIGH, 0 CRITICAL)**. Ver hallazgo pendiente. |
-| SBOM backend / frontend | `PASS` (252 / 65 componentes) |
+| SBOM backend / frontend | `PASS` (252 / 65 componentes; `revision = 36f2324…` en ambos) |
+| `config_digest` backend / frontend | `sha256:130b3157…` / `sha256:cec8df45…` |
 | **Global** | **`FAILED`**. La compuerta funciona y bloquea la imagen del backend. |
+
+**Resultado esperado tras aprobar `EXC-03`:** las 9 CVE de `HAL-04` se suprimirían solo mediante un `.trivyignore.yaml` con `expired_at: 2026-12-15`. Así `Trivy image backend` pasaría a `PASS` y el global a `APPROVED`. Las demás compuertas (config, frontend, SBOM) ya están en `PASS`. Al vencer la fecha, Trivy vuelve a reportarlas y el workflow vuelve a fallar; el vencimiento lo hace cumplir la propia herramienta. Si en vez de excepción se corrigen las dependencias, el resultado esperado es el mismo, pero sin supresiones.
 
 ### Hallazgo pendiente: dependencias del backend fijadas por NestJS 10
 
@@ -112,13 +125,13 @@ Para un mismo SHA, todos los artefactos se pueden cruzar entre sí:
 *Sección 1 — Hallazgos:*
 
 ```markdown
-| **`HAL-04`** | Etapa 3 (`3.3`) — **Trivy image** (`proyecto-seguridad-backend:sha-f045577b…`) | `THR-05` / `CTL-05` | `backend/package-lock.json` vía `@nestjs/platform-express@10.4.22` (`multer 2.0.2`, `body-parser 1.20.4`) y `@nestjs/config@3.3.0` (`lodash 4.17.21`) | `reports/trivy-image-backend-f045577b963deb228642ebf36963f39fb400fe2c.json` (9 HIGH con corrección disponible: CVE-2026-2359, -3304, -3520, -5079, -77078, -82333, -113872, -111181, -4800) | **Alta** (DoS en multipart/descompresión; RCE en `_.template`). Explotabilidad baja en este sistema: API solo `GET`, sin subida de archivos ni `_.template`. | **Brandon** (detecta) / dueño de dependencias backend (corrige) | 🔴 **Abierto** | Pendiente: `overrides` o migración NestJS 11 + re-ejecución de `scripts/container-scan`, **o** excepción `EXC-03`. |
+| **`HAL-04`** | Etapa 3 (`3.3`) — **Trivy image** (`proyecto-seguridad-backend:sha-36f2324d…`) | `THR-05` / `CTL-05` | `backend/package-lock.json` vía `@nestjs/platform-express@10.4.22` (`multer 2.0.2`, `body-parser 1.20.4`) y `@nestjs/config@3.3.0` (`lodash 4.17.21`) | `reports/trivy-image-backend-36f2324d42820a864bc35197e2500afd5063254c.json` (9 HIGH con corrección disponible: CVE-2026-2359, -3304, -3520, -5079, -77078, -82333, -113872, -111181, -4800) | **Alta** (DoS en multipart/descompresión; RCE en `_.template`). Explotabilidad baja en este sistema: API solo `GET`, sin subida de archivos ni `_.template`. | **Brandon** (detecta) / dueño de dependencias backend (corrige) | 🔴 **Abierto** | Pendiente: `overrides` o migración NestJS 11 + re-ejecución de `scripts/container-scan`, **o** excepción `EXC-03`. |
 ```
 
 *Sección 2 — Excepciones (solo si se aprueba en lugar de corregir):*
 
 ```markdown
-| **`EXC-03`** | Trivy image HIGH en `multer`, `body-parser`, `lodash` (`HAL-04`) | `proyecto-seguridad-backend:sha-*` (NestJS 10) | `reports/trivy-image-backend-f045577b963deb228642ebf36963f39fb400fe2c.json` | Mismos paquetes y justificación que `EXC-01`: la API expone solo `GET`, no usa `multer` (sin uploads), no recibe cuerpos comprimidos y no invoca `_.template`. Compensación: contenedor no root, `read_only`, `cap_drop: ALL`, límites de resultados (`CTL-02`). Se aplicaría con un `.trivyignore.yaml` con `expired_at`. | **Brandon** (`Brandon-Corrales`) | **Billy Ugalde** (`Billy-Ugalde`) | 🟡 Propuesta | `2026-12-15` |
+| **`EXC-03`** | Trivy image HIGH en `multer`, `body-parser`, `lodash` (`HAL-04`) | `proyecto-seguridad-backend:sha-*` (NestJS 10) | `reports/trivy-image-backend-36f2324d42820a864bc35197e2500afd5063254c.json` | Mismos paquetes y justificación que `EXC-01`: la API expone solo `GET`, no usa `multer` (sin uploads), no recibe cuerpos comprimidos y no invoca `_.template`. Compensación: contenedor no root, `read_only`, `cap_drop: ALL`, límites de resultados (`CTL-02`). Se aplicaría con un `.trivyignore.yaml` con `expired_at`. | **Brandon** (`Brandon-Corrales`) | **Billy Ugalde** (`Billy-Ugalde`) | 🟡 Propuesta | `2026-12-15` |
 ```
 
 ### Verificación en ejecución (`docker compose up`)
@@ -147,7 +160,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 $ curl http://localhost:8080/api/health  -> 200 (proxy nginx -> backend)
 ```
 
-Reporte: `reports/smoke-test-compose-f045577b963deb228642ebf36963f39fb400fe2c.json`.
+Reportes: `reports/smoke-test-compose-36f2324d42820a864bc35197e2500afd5063254c.json` (vigente: el stack se reconstruyó con `COMMIT_SHA=36f2324…` y `GET /api/health` devuelve `commit_sha: 36f2324d42820a864bc35197e2500afd5063254c`) y `reports/smoke-test-compose-f045577b963deb228642ebf36963f39fb400fe2c.json` (histórico).
 
 ### Comandos para reproducir
 
@@ -192,4 +205,81 @@ En `01-planificacion-kb.md`, fila `THR-05`, columna **Componente Afectado** y **
 
 ## 3.4 — Políticas con Conftest + OPA/Rego
 
-*Pendiente (Prompt 2).*
+> **Estado de la evidencia:** los reportes `reports/conftest-<sha>.json` y `reports/conftest-insecure-demo-<sha>.txt` se generan **sobre el commit que contiene `policy/`** (después de confirmarlo), para no repetir el problema de trazabilidad de `f045577`. Las salidas de abajo vienen de la ejecución previa al commit, con el mismo contenido de archivos.
+
+### Archivos del ítem
+
+| Archivo | Propósito |
+| :--- | :--- |
+| [`policy/container.rego`](../../policy/container.rego) | **Único archivo** con las dos políticas (coincide con `CTL-05` en la KB). Detecta el tipo de entrada: Dockerfile (`--parser dockerfile`, arreglo de instrucciones) o docker-compose (YAML con `services`). Si no reconoce la entrada emite `warn` para que no pase en silencio. |
+| [`policy/container_test.rego`](../../policy/container_test.rego) | 25 pruebas unitarias (`conftest verify`): casos permitidos, rechazados y límite (multi-stage, `ROOT` en mayúsculas, `root:root`, `0:0`, `user: 0` como número, `USER` sin valor, el último `USER` manda). |
+| [`policy/examples/Dockerfile.insecure`](../../policy/examples/Dockerfile.insecure) | Rechazado: la etapa final no declara `USER` (el `USER node` está solo en la etapa de build). |
+| [`policy/examples/Dockerfile.insecure-root`](../../policy/examples/Dockerfile.insecure-root) | Rechazado: `USER root` sin volver a un usuario sin privilegios. |
+| [`policy/examples/docker-compose.insecure.yml`](../../policy/examples/docker-compose.insecure.yml) | Rechazado: `privileged: true` en `backend` y `user: "0"` en `db`. |
+| [`scripts/policy-check.ps1`](../../scripts/policy-check.ps1), [`scripts/policy-check.sh`](../../scripts/policy-check.sh) | `conftest verify` + `conftest test` sobre reales (deben pasar) y ejemplos (deben ser rechazados). Conftest `v0.71.1` (OPA 1.21.1) desde `openpolicyagent/conftest@sha256:0e77cdf7c1fcde035f3c579e4aaa6664ee2a8be5777eaa9af9f520cdd02280c0`. |
+| [`.github/workflows/container-supply-chain.yml`](../../.github/workflows/container-supply-chain.yml), job `policy-conftest` | Ejecuta `scripts/policy-check.sh` en cada PR/push a `main`/`development` y sube el artefacto `conftest-reports-<sha>`. |
+
+### Qué archivo se comprueba con cada política y por qué
+
+| Política (`THR-05` / `CTL-05`) | Archivo | Tipo | Por qué ahí |
+| :--- | :--- | :--- | :--- |
+| **1. Sin modo privilegiado** | `docker-compose.yml` | Despliegue | `privileged` no es una propiedad de la imagen: se decide **al ejecutar el contenedor** (`docker run --privileged` / `privileged: true` en compose). El Dockerfile no puede pedirlo, así que la comprobación va en el archivo de despliegue. Lo mismo aplicará a `deploy/docker-compose.prod.yml` (`6.2`) cuando exista. |
+| **2. Usuario no root explícito** | `backend/Dockerfile`, `frontend/Dockerfile` | Construcción | El usuario por defecto del proceso se fija con `USER` en la **etapa final** de la imagen. Se exige que exista (explícito) y que el último no sea vacío, `root`, `0` ni `0:<gid>`. Las etapas de build pueden ser root porque no llegan a la imagen final. |
+| **2. Usuario no root (refuerzo)** | `docker-compose.yml` | Despliegue | `user:` en compose **sobrescribe** el `USER` de la imagen. Un `user: root` / `user: "0"` anularía la Política 2 aunque el Dockerfile esté bien. |
+
+Cada `deny` cita `THR-05/CTL-05`, nombra el archivo y el servicio o instrucción, y dice cómo corregirlo.
+
+### Evidencia: caso permitido y caso rechazado
+
+```text
+$ powershell -ExecutionPolicy Bypass -File scripts/policy-check.ps1
+=== 1/3 conftest verify (pruebas unitarias de policy/container.rego)
+verify: PASS (25 pruebas, 25 ok, 0 fallidas)
+
+=== 2/3 conftest test sobre archivos REALES (deben pasar)
+  [PASS] backend/Dockerfile (7 comprobaciones)
+  [PASS] frontend/Dockerfile (7 comprobaciones)
+  [PASS] docker-compose.yml (7 comprobaciones)
+
+=== 3/3 conftest test sobre ejemplos INSEGUROS (deben ser rechazados)
+  [REJECTED] policy/examples/Dockerfile.insecure
+        [THR-05/CTL-05] Dockerfile: la etapa final no declara ninguna instrucción USER, por lo que el contenedor se ejecutaría como root. Corrección: agregue 'USER <usuario no root>' (por ejemplo 'USER node' o 'USER 101') en la etapa final, después de los pasos que requieren root.
+  [REJECTED] policy/examples/Dockerfile.insecure-root
+        [THR-05/CTL-05] Dockerfile: la última instrucción USER de la etapa final es 'root', que corresponde a root (UID 0). Corrección: termine la etapa final con un usuario sin privilegios, por ejemplo 'USER node' (UID 1000) o 'USER 101'; si necesita root para instalar paquetes, vuelva al usuario no root después.
+  [REJECTED] policy/examples/docker-compose.insecure.yml
+        [THR-05/CTL-05] docker-compose: el servicio 'backend' usa 'privileged: true', que da acceso a todos los dispositivos y capacidades del host (permite escapar del contenedor). Corrección: elimine 'privileged' y, si hace falta, otorgue solo la capacidad mínima con 'cap_add'.
+        [THR-05/CTL-05] docker-compose: el servicio 'db' fuerza 'user: 0' (root), anulando el USER no root de la imagen. Corrección: elimine 'user:' para usar el de la imagen o indique un UID no root, por ejemplo 'user: "1000:1000"'.
+
+=== Resultado: APPROVED
+```
+
+`frontend/Dockerfile` es un caso permitido interesante: usa `USER root` para `apk upgrade` y luego `USER 101`. La política lo acepta porque evalúa el **último** `USER` de la etapa final (prueba `test_dockerfile_root_then_non_root_allowed`).
+
+### El script comprueba que los rechazos son reales
+
+Conftest devuelve `exit 1` tanto si una política se incumple como si hay un error (por ejemplo, un archivo inexistente). Por eso el script no se fía del código de salida: lee el JSON y solo acepta `REJECTED` si hay al menos un `deny`. Se probó en una copia aislada del repositorio (scratchpad, sin tocar el repo):
+
+| Prueba negativa del script | Resultado |
+| :--- | :--- |
+| (a) Se agrega `USER node` a `Dockerfile.insecure` (el ejemplo deja de ser inseguro) | `Dockerfile.insecure: NOT_REJECTED` → `insecure_demo: FAIL` → **`FAILED`, exit 1** |
+| (b) Se agrega `privileged: true` al servicio `frontend` del `docker-compose.yml` real | `allowed: FAIL` con el mensaje de `deny` → **`FAILED`, exit 1** |
+| (c) Se elimina `backend/Dockerfile` (Conftest no puede analizarlo) | `backend/Dockerfile: INCOMPLETE` → **`FAILED`, exit 1** |
+
+### Complemento en tiempo de ejecución
+
+Conftest comprueba **lo declarado**; en la ejecución real (`3.3`) se verificó lo que de verdad corre:
+
+```text
+$ docker compose exec backend id     -> uid=1000(node) gid=1000(node)
+$ docker compose exec frontend id    -> uid=101(nginx) gid=101(nginx)
+$ docker inspect ... HostConfig      -> privileged=false readonly=true capdrop=[ALL]
+```
+
+### Limitaciones
+
+- **Archivos declarativos, no tiempo real:** Conftest analiza `Dockerfile` y `docker-compose.yml`. No ve un `docker run --privileged` manual, un `--user 0` en línea de comandos ni un cambio hecho directamente en el servidor. Eso se complementa con `docker compose exec backend id` / `docker inspect` (arriba) y, en despliegue, con las comprobaciones de `6.2`/`6.5`.
+- **Solo los archivos que se le pasan:** hoy son `backend/Dockerfile`, `frontend/Dockerfile` y `docker-compose.yml`. Cuando exista `deploy/docker-compose.prod.yml` (`6.2`) hay que agregarlo a `policy-check`.
+- **Variables y nombres:** un `USER ${APP_USER}` o un nombre de usuario arbitrario (`USER admin`) no se resuelven. La política solo reconoce `root` y el UID/GID `0`; no sabe si `admin` tiene UID 0 dentro de la imagen. Lo complementa `id` en ejecución.
+- **Otras formas de privilegio:** la política cubre `privileged` y `user`. No evalúa `cap_add: [SYS_ADMIN]`, `pid: host`, `network_mode: host` ni montar `/var/run/docker.sock`. Son extensiones naturales (el `docker-compose.yml` real ya usa `cap_drop: [ALL]` y `no-new-privileges`).
+- **Variantes de compose:** se evalúa el YAML tal como está, sin interpolar variables ni combinar `docker-compose.override.yml`.
+- **No sustituye la revisión humana:** desactivar o debilitar `policy/container.rego` es un cambio a reglas de seguridad y requiere PR revisado por otro integrante (matriz de acceso de la KB).

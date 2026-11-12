@@ -65,3 +65,51 @@ jobs:
             reports/trivy-*.json
             reports/sbom-*.cdx.json
           if-no-files-found: error
+
+  # ===========================================================================
+  # Ítem 3.4 (THR-05 / CTL-05): políticas Conftest + OPA/Rego (policy/container.rego)
+  # Responsable: Brandon Corrales · Revisor: Billy Ugalde
+  # Falla si una política se incumple en los archivos reales, si alguna prueba unitaria
+  # de la política falla o si un ejemplo inseguro deja de ser rechazado.
+  # ===========================================================================
+  policy-conftest:
+    name: "3.4 Políticas Conftest: no privileged y USER no root"
+    runs-on: ubuntu-24.04
+    env:
+      SCAN_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout del commit analizado
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.SCAN_SHA }}
+          persist-credentials: false
+
+      # Conftest corre desde openpolicyagent/conftest:v0.71.1 fijada por digest (ver scripts/policy-check.sh).
+      - name: conftest verify + test (archivos reales deben pasar; ejemplos inseguros deben ser rechazados)
+        run: bash scripts/policy-check.sh "$SCAN_SHA"
+
+      - name: Resumen de políticas en la ejecución
+        if: always()
+        run: |
+          f="reports/conftest-insecure-demo-${SCAN_SHA}.txt"
+          if [[ -f "$f" ]]; then
+            {
+              echo "### Ítem 3.4 — Conftest (\`${SCAN_SHA}\`)"
+              echo '```text'
+              cat "$f"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::No se generó $f: la verificación de políticas no se ejecutó (INCOMPLETE = no aprobado)."
+            exit 1
+          fi
+
+      - name: Conservar reportes de Conftest como artefacto del commit
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: conftest-reports-${{ env.SCAN_SHA }}
+          path: |
+            reports/conftest-*.json
+            reports/conftest-insecure-demo-*.txt
+          if-no-files-found: error
