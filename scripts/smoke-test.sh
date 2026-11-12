@@ -3,7 +3,13 @@
 set -euo pipefail
 
 BASE_URL="${1:-http://localhost:3000}"
-REPORT_PATH="${2:-reports/smoke-test-report.json}"
+if [[ -n "${2:-}" ]]; then
+  REPORT_PATH="$2"
+else
+  SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
+  STAMP=$(date -u +"%Y%m%dT%H%M%SZ")
+  REPORT_PATH="reports/smoke-test-${SHORT_SHA}-${STAMP}.json"
+fi
 mkdir -p "$(dirname "$REPORT_PATH")"
 
 echo "=================================================================="
