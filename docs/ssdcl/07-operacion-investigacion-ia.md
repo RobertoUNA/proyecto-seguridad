@@ -216,17 +216,155 @@ La IA **no** recibe herramientas, credenciales ni acceso al repositorio o al amb
 | Campo | Valor |
 | :--- | :--- |
 | Ejecutado por | Brandon Corrales (`Brandon-Corrales`) |
-| Fecha y hora | *(completar)* |
-| Herramienta / modelo | *(completar: p. ej. claude.ai — nombre exacto del modelo mostrado en el chat)* |
+| Fecha y hora | 2026-11-11, aprox. 20:56 (hora de Costa Rica, UTC−6) |
+| Herramienta / modelo | claude.ai — Claude Opus 5.5 (esfuerzo "Medio"), modo Incógnito ("Sin historial, memoria ni entrenamiento de Claude") |
 | Modalidad | Chat **nuevo** en claude.ai, **sin herramientas, sin archivos adjuntos y sin acceso al repositorio**. Se pegó únicamente el contenido de `reports/security-alert-prompt-4aa366d1805038e6d152164961972995ffcbb011.md`. |
 | Entrada | Prompt de 14 312 bytes (plantilla `07-prompt-investigacion.md` + `security-alert-4aa366d….json` + 18 eventos sanitizados) |
-| Enlace o captura del chat | *(opcional: completar)* |
+| Enlace o captura del chat | Chat incógnito, no se conserva enlace persistente. Captura disponible a solicitud. |
 
 ### Respuesta de la IA (pegada tal cual, sin editar)
 
 <!-- PEGAR AQUÍ LA RESPUESTA COMPLETA DE LA IA, SIN MODIFICARLA -->
 
-*(pendiente: la pega Brandon)*
+#### Análisis de la señal SIG-01 sobre el actor b4231f77ae16e55c
+
+#### 1. Resumen del incidente
+
+Qué y cuándo: el 2026-11-12, entre 02:50:38.744Z y 02:50:42.815Z (4,07 s; 20:50 del 11-nov en hora de Costa Rica, UTC−6), un único actor_id generó 18 eventos de seguridad. Eso es unas 4,4 peticiones/s con una cadencia muy regular (~205–257 ms entre peticiones).
+
+Fase 1, sondeo de rutas (7 not_found, todas GET): /api/admin, 3 × /api/:redacted, /api/users, /api/swagger, /api/actuator/health.
+
+Fase 2, payloads sospechosos (5 abuse_suspected):
+- sql_injection en query.canton de /api/delitos y /api/accidentes (400) y en path.id de FLOW-01 (404);
+- path_traversal y xss en query.canton (400).
+
+Fase 3, validación (3 validation_rejected, 400): query.desde (×2) y query.anio.
+
+Fase 4, escritura (3 access_denied, todas 404): POST, PUT y DELETE.
+
+Respuestas: todas fueron 400 o 404, coherentes con lo esperado en FLOW-01/FLOW-02. No hay eventos server_error (5xx) en el archivo fuente.
+
+#### 2. Hipótesis
+
+##### H1. Escaneo automatizado
+
+A favor:
+- La cadencia es casi constante (~230 ms) y sería imposible de sostener a mano.
+- Prueba rutas genéricas de otros frameworks que no existen en este sistema. /api/actuator/health es típica de Spring Boot y /api/swagger y /api/admin son rutas comunes en diccionarios de escaneo.
+- Cubre varias familias de ataque (SQLi, traversal, XSS) y además métodos de escritura.
+
+En contra:
+- El volumen es muy bajo para un escáner genérico. Herramientas tipo diccionario o DAST suelen generar cientos o miles de peticiones.
+- Hay un solo payload por categoría y no se ve iteración.
+
+Valoración: alta en cuanto a que es automatizado; media en cuanto a que sea una herramienta de escaneo genérica (ver H5).
+
+##### H2. Intento de inyección dirigido contra FLOW-01 / FLOW-02
+
+A favor:
+- Los payloads van exactamente a parámetros reales (canton, path.id, desde, anio) y a las tres rutas de los flujos.
+- Incluye el caso de FLOW-01 descrito en la base de conocimiento.
+
+En contra:
+- Esos nombres de parámetro son públicos: los usa el frontend, así que conocerlos no implica preparación especial.
+- No hay adaptación tras los rechazos (no hay variaciones de payload ni reintentos).
+- Dura 4 s y no hay ningún indicio de éxito.
+
+Valoración: media. Hubo intentos con forma de inyección (según las etiquetas regex), pero nada indica una campaña persistente ni adaptativa.
+
+##### H3. Error de un cliente legítimo
+
+A favor:
+- Los 3 validation_rejected sobre desde y anio sin patrón sospechoso podrían ser un bug de formato de fechas del frontend o de una integración.
+- El actor_id puede ser compartido por NAT o proxy.
+
+En contra:
+- El frontend no tiene motivo para pedir /api/admin, /api/actuator/health, /api/swagger ni para usar POST/PUT/DELETE.
+- Tampoco tiene motivo para enviar valores con forma de XSS o traversal.
+- La cadencia uniforme apunta a un único cliente automatizado, no a varios usuarios mezclados.
+
+Valoración: baja para el conjunto. Como mucho, explicaría los 3 eventos de validación de forma aislada.
+
+##### H4. Falso positivo (detección por patrones o regla SIG-01)
+
+A favor:
+- Las regex pueden marcar valores benignos. Sin ver los valores no se pueden validar las 5 etiquetas.
+- SIG-01 cuenta not_found, que también generan crawlers inofensivos.
+
+En contra:
+- SIG-01 se activó correctamente según su definición: 18 eventos frente a un umbral de 10 en 5 min.
+- Que coincidan tres familias distintas de patrón, sondeo de rutas administrativas y métodos de escritura en 4 s es difícil de explicar con falsos positivos.
+
+Valoración: baja para la señal en conjunto; media para etiquetas individuales.
+
+##### H5 (adicional). Prueba controlada interna (test de seguridad, e2e o DAST del propio equipo)
+
+A favor (supuestos, no verificados):
+- La secuencia está "demasiado ordenada" y recorre exactamente los controles de la base de conocimiento, en orden: rutas inexistentes, inyección en FLOW-01/02, validación de fechas y escritura denegada.
+- Hay un caso por categoría.
+- El archivo fuente contiene solo 18 líneas y 1 actor.
+- El nombre del archivo incluye un hash de 40 caracteres hexadecimales, con forma de SHA de commit, lo que sugiere un reporte generado por CI.
+- generated_at aparece solo 4 s después del último evento.
+
+En contra: nada en los datos lo confirma. Un atacante con un script propio produciría un patrón parecido.
+
+Valoración: media. Es la hipótesis que más conviene confirmar o descartar primero, porque cambia por completo la interpretación.
+
+#### 3. Qué comprobar a continuación (por prioridad)
+
+Origen del reporte y posible prueba interna (H5).
+- Qué revisar: si el hash del nombre del archivo corresponde a un commit del repositorio y si hubo una ejecución de pipeline, tests e2e de seguridad o DAST alrededor de las 02:50Z. Preguntar al equipo si alguien ejecutó pruebas.
+- Acceso necesario: repositorio y CI.
+- Resultado: si coincide, se confirma H5 y H1/H2 bajan a "actividad esperada". Si no, H1/H2 ganan peso.
+
+Logs completos de acceso (nginx o backend) en la ventana 02:50:30–02:51:00Z, incluidos los 2xx.
+- Qué buscar: si hubo peticiones con respuesta 2xx intercaladas, el user-agent y el volumen total.
+- Hay un hueco de ~425 ms entre 02:50:40.755 y 02:50:41.180, el doble de la cadencia habitual. Es un supuesto que ahí hubo una petición con 2xx (sin evento); también puede ser solo latencia.
+- Resultado: si algún payload sospechoso recibió 2xx, sería un hueco de detección o de validación relevante para THR-01/CTL-01.
+- Acceso: los logs crudos pueden contener valores, así que su consulta debe hacerla una persona autorizada.
+
+Verificación de FLOW-01 y CTL-01 para f48077d8-….
+- Qué revisar: en los logs del backend y de PostgreSQL, que no haya errores de sintaxis SQL ni excepciones ligadas a esa petición ni a d4de83b8-… y d204cc9e-….
+- Resultado: un error de sintaxis en la BD indicaría interpolación, contradiciendo CTL-01. Su ausencia respalda que la consulta parametrizada funcionó.
+
+Revisión de CTL-01 en el código actual.
+- Qué hacer: una persona confirma que la regla Semgrep pasa en el commit desplegado y que canton y anio tienen validación de tipo.
+- Por qué: la base de conocimiento solo dice explícitamente que las fechas se rechazan con 400, y aquí canton también devolvió 400.
+- Opcional, si lo decide el responsable: reproducir los casos en un ambiente no productivo.
+
+Correlación temporal del actor_id.
+- Qué buscar: si b4231f77ae16e55c aparece antes o después en otros reportes (el alcance persistent lo permite mientras no rote la sal) y si otros actor_id muestran la misma secuencia a la misma hora, lo que indicaría actividad distribuida.
+- Resultado: recurrencia o expansión favorecen H2; un evento único y aislado favorece H5 o un escaneo oportunista.
+
+Calidad de la detección (H4).
+- Qué revisar, con acceso controlado a los valores: si las 5 etiquetas regex corresponden a payloads reales.
+- También si los 3 validation_rejected sin patrón eran en realidad payloads no detectados. Eso sería un falso negativo, relevante para CTL-06.
+
+Impacto en disponibilidad (THR-02/CTL-02).
+- Qué revisar: latencia y uso de CPU y BD en esa ventana.
+- A ~4,4 req/s se espera un impacto nulo; confirmarlo permite descartar DoS.
+
+Coherencia de clasificación y exposición.
+- Comprobar que los health checks reales (CTL-06) no usan una ruta expuesta públicamente.
+- Comprobar que nginx no reenvía /api a ningún otro servicio que acepte escritura. Las 3 respuestas 404 a POST/PUT/DELETE son coherentes con "no hay rutas de escritura".
+
+#### 4. Qué NO puede concluirse solo con estos logs
+
+- Quién es ni con qué intención actúa. El actor_id es un seudónimo y puede agrupar a varias personas detrás de NAT, proxy o VPN. No debe intentarse revertir.
+- Si algún intento tuvo éxito. Las respuestas 2xx no generan evento, así que no se ve la actividad completa del actor. La ausencia de 5xx en este archivo no prueba ausencia de impacto.
+- Los valores reales enviados. Las etiquetas de patrón son heurísticas regex; no permiten juzgar la sofisticación de los payloads ni descartar falsos positivos o negativos.
+- Qué se pidió en las 3 rutas /api/:redacted.
+- Qué herramienta se usó. No hay user-agent ni cabeceras.
+- Si el archivo es completo o un extracto filtrado. Contiene 18 líneas y 1 actor.
+- El origen interno (H5). Es solo un supuesto basado en la forma del nombre de archivo y del patrón.
+
+#### 5. Nivel de confianza global
+
+- Alta en que se trató de actividad automatizada y breve, y en que las respuestas observadas (400/404) coinciden con el comportamiento esperado de FLOW-01, FLOW-02 y la API de solo lectura.
+- Media-baja en la intención: no se puede distinguir entre una prueba interna, un escaneo oportunista o un intento dirigido.
+- Dato que más cambiaría el análisis: confirmar si la ejecución corresponde a una prueba interna o de CI (el hash del archivo). Después, los logs de acceso completos con los 2xx y el user-agent de esa ventana.
+
+Este análisis no propone ninguna acción automática; cualquier medida queda a decisión de la persona responsable.
 
 <!-- FIN DE LA RESPUESTA DE LA IA -->
 
@@ -246,23 +384,44 @@ De las 19 peticiones del escaneo, **una no aparece en los logs**: `GET /api/deli
 
 > **Completa esta sección Brandon Corrales.** La IA y el agente de desarrollo no la completan. Contrastar cada hipótesis de la respuesta de la IA con la evidencia (`security-alert-logs-4aa366d….jsonl`, `security-alert-4aa366d….json`, el manifiesto del tráfico, `docker logs` y, si aplica, la observación anterior).
 
+**Evidencia revisada (aplica a todas las filas):** reports/security-alert-logs-4aa366d….jsonl (orden y hora de los 18 eventos, listados con PowerShell) comparado con la secuencia de peticiones de scripts/generate-security-traffic.ps1 (normales: líneas 40–44, ejecutadas antes y después del escaneo; escaneo: líneas 49–70).
+
 | Hipótesis | Evidencia revisada | ¿Se confirma? (sí / no / parcial) | Comentario |
 | :--- | :--- | :---: | :--- |
-| H1. Escaneo automatizado | | | |
-| H2. Intento de inyección dirigido contra FLOW-01 / FLOW-02 | | | |
-| H3. Error de un cliente legítimo | | | |
-| H4. Falso positivo (patrones o regla SIG-01) | | | |
-| H5. *(si la IA propuso otra)* | | | |
+| H1. Escaneo automatizado | Logs vs. script | Parcial | Es automatizado, pero se trata de un script propio de prueba (generate-security-traffic.ps1), no de una herramienta de escaneo de terceros. |
+| H2. Intento de inyección dirigido contra FLOW-01 / FLOW-02 | Payloads de las líneas 57–62 del script | Parcial | Los payloads sí apuntaban a parámetros reales de FLOW-01/02, pero por diseño de la prueba, no por un atacante. |
+| H3. Error de un cliente legítimo | Líneas 64–70 del script | No | Las 3 fechas inválidas se enviaron a propósito; ningún cliente legítimo pide /api/admin ni usa POST/PUT/DELETE. |
+| H4. Falso positivo (patrones o regla SIG-01) | security-alert-4aa366d….json y líneas 57–62 | No | SIG-01 se activó según su regla (18 ≥ 10 en 5 min) y cada etiqueta corresponde a un payload realmente enviado. |
+| H5. Prueba controlada interna (propuesta por la IA) | Commit 4aa366d, script y hora de ejecución | Sí | Tráfico generado por Brandon con generate-security-traffic.ps1 sobre el commit 4aa366d, el 2026-11-11 a las ~20:50 (hora de Costa Rica). |
 
-**Comprobaciones propuestas por la IA que se realizaron:** *(completar)*
+**Correspondencia petición → evento:**
 
-**Decisión registrada:** *(completar: p. ej. cerrar como prueba controlada / escalar / registrar hallazgo)*
+| Peticiones (líneas del script) | Respuesta | Eventos |
+| :--- | :--- | :--- |
+| 10 normales (40–44, ×2) | 200 | 0 (esperado: los 2xx no generan evento) |
+| 7 rutas inexistentes (49–55) | 404 | 7 not_found (38.744 → 40.057) |
+| 5 payloads (57, 58, 59, 61, 62) | 400 / 404 | 5 abuse_suspected (3 sql_injection, 1 path_traversal, 1 xss) |
+| 1 payload DROP TABLE (60) | 200 | 0 ← punto ciego |
+| 3 fechas/años inválidos (64–66) | 400 | 3 validation_rejected, sin patrones |
+| 3 escrituras POST/PUT/DELETE (68–70) | 404 | 3 access_denied |
+| Total: 29 peticiones | | 18 eventos |
 
-**Fecha:** *(completar)* · **Responsable:** Brandon Corrales · **Revisor:** Billy Ugalde
+**Comprobaciones propuestas por la IA que se realizaron:**
+
+- Origen del reporte (punto 3.1): el hash del nombre del archivo es el commit 4aa366d del repositorio y la ejecución la hizo Brandon. Se confirma H5.
+- Hueco de ~425 ms (punto 3.2): entre 02:50:40.755 (línea 59, /api/cantones/101' OR '1'='1/panorama) y 02:50:41.180 (línea 61, /api/delitos?canton=../../etc/passwd) está la línea 60: /api/delitos?tipo=x'; DROP TABLE delito;-- que respondió 200 sin generar evento. Se confirma la deducción de la IA.
+- Calidad de la detección (punto 3.6): los 3 validation_rejected corresponden a desde=no-es-fecha, desde=2025-13-45 y anio=99999, sin comillas, OR, ../ ni <script>. No hay falsos negativos en esos eventos; las 5 etiquetas corresponden a payloads realmente enviados.
+- No se realizaron: logs de PostgreSQL (3.3), revisión de código de CTL-01 (3.4), correlación con otros actores (3.5), métricas de disponibilidad (3.7) ni revisión de nginx (3.8), porque al confirmarse H5 (prueba controlada en ambiente local) no aportan a la decisión.
+
+**Decisión registrada:**
+
+La señal SIG-01 es un verdadero positivo de la regla, originado por una prueba controlada interna (H5). No es un incidente y no se requiere ninguna acción sobre el ambiente. Se confirma con evidencia la deducción de la IA (punto 3.2): el hueco de 425 ms corresponde a la petición /api/delitos?tipo=x'; DROP TABLE delito;-- (línea 60 del script), que respondió 200 sin generar evento. La consulta parametrizada neutralizó el payload, así que no es una vulnerabilidad. Pero el 7.2 solo registra respuestas 4xx/5xx, por lo que los intentos de inyección que no producen error no dejan rastro: es un punto ciego de detección (THR-06/CTL-06). Se descartan falsos negativos en los 3 validation_rejected. Se registra la propuesta de HAL-05 (severidad baja) para Billy, con la mejora para el próximo ciclo: detectar patrones sospechosos también en respuestas 2xx.
+
+**Fecha:** 2026-11-11 · **Responsable:** Brandon Corrales · **Revisor:** Billy Ugalde
 
 ### Fila propuesta para el Registro Único (`REGISTRO-HALLAZGOS.md`, Billy) — solo si la decisión lo amerita
 
-Redactada a partir de la observación anterior. Billy decide si la registra y Brandon confirma la severidad en la validación; no edité ese archivo.
+Redactada a partir de la observación anterior y de la decisión registrada. Severidad **Baja**, confirmada por Brandon. Billy decide si la registra; no edité ese archivo.
 
 ```markdown
 | **`HAL-05`** | Etapa 7 (`7.4`) — Investigación de la señal `SIG-01` | `THR-06` / `CTL-06` (relacionado `THR-01`) | Backend `4aa366d` — `backend/src/common/security-event.filter.ts` (solo registra respuestas `>= 400`) | En la demo, `GET /api/delitos?tipo=<payload SQL>` respondió `200` sin generar evento; ver `reports/security-alert-logs-4aa366d….jsonl` y la sección 7.4 de `07-operacion-investigacion-ia.md`. | **Baja** (la consulta parametrizada neutraliza el payload: sin impacto en datos; el efecto es pérdida de visibilidad para la investigación) | **Brandon** (`Brandon-Corrales`) | 🔴 **Abierto** *(si se registra)* | Mejora propuesta: registrar también como `abuse_suspected` las peticiones `2xx` cuyos valores coincidan con `suspicious_patterns`, y verificarlo repitiendo `generate-security-traffic.ps1` + `security-alert-check.py`. |
