@@ -144,7 +144,7 @@ jobs:
 
       - name: 1/3 Ejecutar Análisis Estático SAST con Semgrep CE (.semgrep.yml)
         run: |
-          pip install semgrep
+          pip install semgrep==1.185.0
           semgrep scan --config .semgrep.yml --validate
           semgrep scan --config .semgrep.yml --json --output "reports/semgrep-${GITHUB_SHA}.json" --error backend/src frontend/src workers
           python3 scripts/sast-check.py

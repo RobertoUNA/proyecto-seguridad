@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Health checks y Smoke Tests posteriores al despliegue (Ítem 6.5).
   Comprueba disponibilidad de la API, conectividad PostGIS, cruce de las 4 fuentes OSINT,
@@ -6,10 +6,16 @@
 #>
 param(
     [string]$BaseUrl = "http://localhost:3000",
-    [string]$ReportPath = "reports/smoke-test-report.json"
+    [string]$ReportPath = ""
 )
 
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($ReportPath)) {
+    $ShortSha = (git rev-parse --short HEAD 2>$null)
+    if ([string]::IsNullOrWhiteSpace($ShortSha)) { $ShortSha = "local" }
+    $Stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+    $ReportPath = "reports/smoke-test-$ShortSha-$Stamp.json"
+}
 $Results = @()
 $Failed = 0
 

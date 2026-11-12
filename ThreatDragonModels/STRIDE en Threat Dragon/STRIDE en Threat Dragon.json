@@ -1,0 +1,29 @@
+{
+  "version": "2.6.2",
+  "release_version": "",
+  "released_at": "2026-11-13",
+  "summary": {
+    "title": "STRIDE en Threat Dragon",
+    "owner": "Billy",
+    "description": "Un sistema de consultas",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [],
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "Nuevo diagrama STRIDE",
+        "diagramType": "STRIDE",
+        "placeholder": "Descripción de nuevo diagrama STRIDE",
+        "thumbnail": "./public/content/images/thumbnail.stride.jpg",
+        "version": "2.6.2",
+        "cells": [],
+        "description": "Diagrama STRIDE ciber"
+      }
+    ],
+    "diagramTop": 1,
+    "reviewer": "Fabian",
+    "threatTop": 0
+  }
+}
