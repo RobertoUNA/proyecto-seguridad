@@ -81,13 +81,13 @@ jobs:
       - name: Ejecutar Linter y Compilación de Backend
         working-directory: backend
         run: |
-          npm run lint --if-present
+          npm run lint
           npm run build
 
       - name: Ejecutar Pruebas Unitarias (Workers Python + Backend)
         run: |
           python -m unittest discover -s workers/cosevi -p "test_*.py" -v
-          cd backend && npm test --if-present
+          cd backend && npm test
 
       - name: Preparar base de datos aislada con migraciones y datos ficticios (Ítem 3.1 / 4.1)
         env:
