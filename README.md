@@ -208,6 +208,10 @@ python -m unittest discover -s workers/cosevi -p "test_*.py" -v
 cd backend && npm test            # Jest: indice_cobertura (cruce.service.spec.ts)
 cd backend && npm run test:cov    # con cobertura (informe en backend/coverage)
 
+# 2b. Pruebas de integración API + BD de pruebas (Supertest). Requieren PostGIS con migraciones + backend/database/seed_test.sql
+#     y las variables DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME apuntando a la BD de PRUEBAS (nunca a datos reales).
+cd backend && npm run test:integration
+
 # 3. Análisis Estático SAST (Semgrep CE / .semgrep.yml) y Detección de Secretos (Gitleaks)
 python scripts/sast-check.py
 powershell -ExecutionPolicy Bypass -File scripts/security-scan.ps1

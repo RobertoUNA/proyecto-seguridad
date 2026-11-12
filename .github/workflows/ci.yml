@@ -99,6 +99,10 @@ jobs:
           psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/migrations/004_create_infraestructura.sql
           psql -h localhost -U seguridad_vial -d seguridad_vial_test -f backend/database/seed_test.sql
 
+      - name: Pruebas de integración API + BD con Supertest (Ítem 4.3)
+        working-directory: backend
+        run: npm run test:integration
+
       - name: Verificar aplicación en ejecución con Health Checks y Smoke Tests
         run: |
           mkdir -p reports
