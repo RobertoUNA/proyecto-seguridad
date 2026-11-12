@@ -19,7 +19,9 @@
   powershell -ExecutionPolicy Bypass -File scripts/container-scan.ps1 -Sha 0123abcd...
 #>
 param(
-    [string]$Sha = ""
+    [string]$Sha = "",
+    # Carpeta alternativa de reportes (la usa scripts/agent-verify para no sobrescribir la evidencia de reports/).
+    [string]$ReportDir = $env:REPORT_DIR
 )
 
 # "Continue": los comandos nativos (docker) escriben progreso en stderr; el resultado
@@ -47,7 +49,7 @@ try {
         Write-Host "[AVISO] Hay cambios sin confirmar en backend/, frontend/ o docker-compose.yml: los reportes NO describen exactamente el commit $Sha." -ForegroundColor Yellow
     }
 
-    $Reports = Join-Path $Root "reports"
+    $Reports = if ($ReportDir) { $ReportDir } else { Join-Path $Root "reports" }
     New-Item -ItemType Directory -Force $Reports | Out-Null
     $work = Join-Path ([System.IO.Path]::GetTempPath()) ("container-scan-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force $work | Out-Null

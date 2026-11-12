@@ -44,7 +44,8 @@ if [[ -n "$(git status --porcelain -- backend frontend docker-compose.yml)" ]]; 
   echo "[AVISO] Hay cambios sin confirmar en backend/, frontend/ o docker-compose.yml: los reportes NO describen exactamente el commit ${SHA}." >&2
 fi
 
-REPORTS="$ROOT/reports"
+# REPORT_DIR: carpeta alternativa (la usa scripts/agent-verify para no sobrescribir la evidencia de reports/).
+REPORTS="${REPORT_DIR:-$ROOT/reports}"
 mkdir -p "$REPORTS"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

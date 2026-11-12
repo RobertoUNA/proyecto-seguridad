@@ -17,7 +17,9 @@
   powershell -ExecutionPolicy Bypass -File scripts/policy-check.ps1
 #>
 param(
-    [string]$Sha = ""
+    [string]$Sha = "",
+    # Carpeta alternativa de reportes (la usa scripts/agent-verify para no sobrescribir la evidencia de reports/).
+    [string]$ReportDir = $env:REPORT_DIR
 )
 
 $ErrorActionPreference = "Continue"
@@ -65,7 +67,7 @@ function Test-File($entry) {
 try {
     if (-not $Sha) { $Sha = (git rev-parse HEAD).Trim() }
     if ($Sha -notmatch '^[0-9a-f]{7,40}$') { throw "SHA inválido: '$Sha'" }
-    $Reports = Join-Path $Root "reports"
+    $Reports = if ($ReportDir) { $ReportDir } else { Join-Path $Root "reports" }
     New-Item -ItemType Directory -Force $Reports | Out-Null
     $dirty = @(git status --porcelain -- policy backend/Dockerfile frontend/Dockerfile docker-compose.yml)
     if ($dirty.Count -gt 0) { Write-Host "[AVISO] Hay cambios sin confirmar en los archivos verificados: el reporte no describe exactamente el commit $Sha." -ForegroundColor Yellow }

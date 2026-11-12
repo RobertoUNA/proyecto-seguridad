@@ -39,3 +39,4 @@ pass.txt
 __pycache__/
 *.pyc
 *.pyo
+.claude/verify-attempts

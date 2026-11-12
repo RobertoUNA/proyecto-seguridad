@@ -39,7 +39,8 @@ if [[ -n "$(git status --porcelain -- policy backend/Dockerfile frontend/Dockerf
   echo "[AVISO] Hay cambios sin confirmar en los archivos verificados: el reporte no describe exactamente el commit ${SHA}." >&2
 fi
 
-REPORTS="$ROOT/reports"
+# REPORT_DIR: carpeta alternativa (la usa scripts/agent-verify para no sobrescribir la evidencia de reports/).
+REPORTS="${REPORT_DIR:-$ROOT/reports}"
 mkdir -p "$REPORTS"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
