@@ -194,4 +194,76 @@ Para agregar a la tabla 4.3 de `01-planificacion-kb.md` (no edité la KB):
 
 ## 7.4 — Investigación de una alerta con IA
 
-*Pendiente (Prompt 6).*
+> **Commit analizado (evidencia vigente):** `4aa366d1805038e6d152164961972995ffcbb011` (scripts `security-alert-check.py`, `generate-security-traffic.ps1`, `build-investigation-prompt.py` y plantilla [`07-prompt-investigacion.md`](./07-prompt-investigacion.md)). Stack reconstruido con `COMMIT_SHA=4aa366d…` (`/api/health` lo confirma), árbol limpio.  
+> **Alcance:** la condición de disparo `SIG-01` es el **prerrequisito mínimo** para tener algo que investigar. **No es el ítem `7.3`**: no hay notificación, Grafana ni Prometheus, y no se bloquea nada.
+
+### Flujo seguido
+
+| Paso | Qué se hizo | Evidencia |
+| :--- | :--- | :--- |
+| 1. Tráfico controlado | `generate-security-traffic.ps1` (solo `localhost`): 29 peticiones, 10 normales y 19 de un patrón tipo escaneo (rutas inexistentes, inyección SQL, path traversal, XSS, fechas inválidas, POST/PUT/DELETE), parte por nginx `:8080` y parte directo a `:3001`. | Resultado: 10× `200` normales; escaneo: 1× `200`, 7× `400`, 11× `404`. |
+| 2. Extracción de logs sanitizados | Eventos de seguridad del backend generados **solo** durante esa ejecución. | [`reports/security-alert-logs-4aa366d….jsonl`](../../reports/security-alert-logs-4aa366d1805038e6d152164961972995ffcbb011.jsonl) (18 eventos) |
+| 3. Verificación de sanitización | `verify-security-logs.py`: **PASS**. Comprobó 3 IPs de cliente (loopback, gateway, nginx), 13 valores enviados prohibidos (payloads, fechas, rutas), la ausencia de `Authorization`/`Cookie` y los patrones `sql_injection`, `path_traversal` y `xss`. | [`reports/verify-security-alert-logs-4aa366d….txt`](../../reports/verify-security-alert-logs-4aa366d1805038e6d152164961972995ffcbb011.txt) |
+| 4. Señal | `security-alert-check.py` (N=10, T=5 min): **`SIGNAL`**. Actor `b4231f77ae16e55c`, **18 eventos en 4,07 s** (02:50:38.744Z → 02:50:42.815Z): `not_found` 7, `abuse_suspected` 5, `validation_rejected` 3, `access_denied` 3; patrones `sql_injection` 3, `path_traversal` 1, `xss` 1. | [`reports/security-alert-4aa366d….json`](../../reports/security-alert-4aa366d1805038e6d152164961972995ffcbb011.json) |
+| 5. Prompt concreto | `build-investigation-prompt.py`: plantilla + señal + extracto (solo eventos del `7.2`; 0 marcadores sin sustituir, 0 IPs ni payloads). | [`reports/security-alert-prompt-4aa366d….md`](../../reports/security-alert-prompt-4aa366d1805038e6d152164961972995ffcbb011.md) |
+| 6. Análisis con IA | Lo ejecuta **Brandon** en un chat nuevo, pegando **solo** el contenido del prompt (ver registro abajo). | Respuesta pegada tal cual abajo. |
+| 7. Validación humana | Brandon contrasta cada hipótesis con la evidencia y registra la decisión. | Sección "VALIDACIÓN HUMANA". |
+
+La IA **no** recibe herramientas, credenciales ni acceso al repositorio o al ambiente. No puede bloquear, cambiar permisos ni modificar nada, y el prompt le prohíbe además recomendar acciones automáticas.
+
+### Registro de la ejecución del análisis
+
+| Campo | Valor |
+| :--- | :--- |
+| Ejecutado por | Brandon Corrales (`Brandon-Corrales`) |
+| Fecha y hora | *(completar)* |
+| Herramienta / modelo | *(completar: p. ej. claude.ai — nombre exacto del modelo mostrado en el chat)* |
+| Modalidad | Chat **nuevo** en claude.ai, **sin herramientas, sin archivos adjuntos y sin acceso al repositorio**. Se pegó únicamente el contenido de `reports/security-alert-prompt-4aa366d1805038e6d152164961972995ffcbb011.md`. |
+| Entrada | Prompt de 14 312 bytes (plantilla `07-prompt-investigacion.md` + `security-alert-4aa366d….json` + 18 eventos sanitizados) |
+| Enlace o captura del chat | *(opcional: completar)* |
+
+### Respuesta de la IA (pegada tal cual, sin editar)
+
+<!-- PEGAR AQUÍ LA RESPUESTA COMPLETA DE LA IA, SIN MODIFICARLA -->
+
+*(pendiente: la pega Brandon)*
+
+<!-- FIN DE LA RESPUESTA DE LA IA -->
+
+### Observación del agente de desarrollo (no es parte del análisis de la IA)
+
+> Esta observación la registró el agente que construyó la demo (Claude Code) y **no se incluyó en el prompt**, para que el análisis de la IA fuera independiente. Sirve como dato para la validación humana.
+
+De las 19 peticiones del escaneo, **una no aparece en los logs**: `GET /api/delitos?tipo=x'; DROP TABLE delito;--` respondió **`200`** con un resultado vacío (`{"delitos":[], ...}`). Según `FLOW-02`/`CTL-01`, la consulta parametrizada neutraliza el payload, así que no hubo error. Como el `7.2` solo registra respuestas `>= 400`, **no se generó ningún evento**. Por eso:
+
+- los 18 eventos de la señal no son todo el tráfico del actor; un intento de inyección "exitoso" desde el punto de vista HTTP (200) es invisible para el registro y para `SIG-01`;
+- el conteo de `abuse_suspected` (5) subestima los intentos de inyección reales (6 en el tráfico);
+- es la limitación ya documentada del `7.2` ("Solo respuestas de error"). Si la validación humana la considera relevante, puede derivar en un hallazgo (fila propuesta abajo).
+
+---
+
+## VALIDACIÓN HUMANA — Brandon Corrales
+
+> **Completa esta sección Brandon Corrales.** La IA y el agente de desarrollo no la completan. Contrastar cada hipótesis de la respuesta de la IA con la evidencia (`security-alert-logs-4aa366d….jsonl`, `security-alert-4aa366d….json`, el manifiesto del tráfico, `docker logs` y, si aplica, la observación anterior).
+
+| Hipótesis | Evidencia revisada | ¿Se confirma? (sí / no / parcial) | Comentario |
+| :--- | :--- | :---: | :--- |
+| H1. Escaneo automatizado | | | |
+| H2. Intento de inyección dirigido contra FLOW-01 / FLOW-02 | | | |
+| H3. Error de un cliente legítimo | | | |
+| H4. Falso positivo (patrones o regla SIG-01) | | | |
+| H5. *(si la IA propuso otra)* | | | |
+
+**Comprobaciones propuestas por la IA que se realizaron:** *(completar)*
+
+**Decisión registrada:** *(completar: p. ej. cerrar como prueba controlada / escalar / registrar hallazgo)*
+
+**Fecha:** *(completar)* · **Responsable:** Brandon Corrales · **Revisor:** Billy Ugalde
+
+### Fila propuesta para el Registro Único (`REGISTRO-HALLAZGOS.md`, Billy) — solo si la decisión lo amerita
+
+Redactada a partir de la observación anterior. Billy decide si la registra y Brandon confirma la severidad en la validación; no edité ese archivo.
+
+```markdown
+| **`HAL-05`** | Etapa 7 (`7.4`) — Investigación de la señal `SIG-01` | `THR-06` / `CTL-06` (relacionado `THR-01`) | Backend `4aa366d` — `backend/src/common/security-event.filter.ts` (solo registra respuestas `>= 400`) | En la demo, `GET /api/delitos?tipo=<payload SQL>` respondió `200` sin generar evento; ver `reports/security-alert-logs-4aa366d….jsonl` y la sección 7.4 de `07-operacion-investigacion-ia.md`. | **Baja** (la consulta parametrizada neutraliza el payload: sin impacto en datos; el efecto es pérdida de visibilidad para la investigación) | **Brandon** (`Brandon-Corrales`) | 🔴 **Abierto** *(si se registra)* | Mejora propuesta: registrar también como `abuse_suspected` las peticiones `2xx` cuyos valores coincidan con `suspicious_patterns`, y verificarlo repitiendo `generate-security-traffic.ps1` + `security-alert-check.py`. |
+```
