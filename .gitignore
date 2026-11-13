@@ -39,4 +39,7 @@ pass.txt
 __pycache__/
 *.pyc
 *.pyo
+
+# Cobertura de pruebas (Jest)
+coverage/
 .claude/verify-attempts

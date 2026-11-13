@@ -2,8 +2,12 @@
 
 > **Ítem:** `5.5` · **Responsable:** Brandon Corrales (`Brandon-Corrales`) · **Revisor:** Roberto (`RobertoUNA`)  
 > **Relación con la KB:** `EXT-06` (Docker Hub), `SEC-03` (`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`), `THR-05` / `CTL-05` (solo se publica lo que pasó Trivy y Conftest), `SEC-05` (permisos mínimos del `GITHUB_TOKEN`).  
-> **Commit analizado (evidencia vigente):** `67965235342d27bd4f53dc118f3a62a3d78785d0` (commit `feat(ssdlc): item 5.5 …`), árbol limpio (`worktree_clean: true`).  
-> **Evidencia de la mecánica:** [`reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json`](../../reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json) (simulación local, 2026-11-12T03:46:13Z).
+> **Publicación real vigente:** commit `ddf53201e2899b99bd859b36f2ba28b8676e9d07` (merge del PR #16 `development → main`), publicado el 2026-11-13T17:28:37Z por la corrida [#1 (43472950185)](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472950185). Detalle en [Primera publicación real (ddf5320)](#primera-publicación-real-ddf5320).
+> - `docker.io/elrobb/proyecto-seguridad-backend@sha256:5bfc15e6e7688c167fd4ca1bf1ebdc354c0b16d24b96bb0b2eae6718ef712797`
+> - `docker.io/elrobb/proyecto-seguridad-frontend@sha256:e478b510e4ed37192a991aeb8e1d220dffc7351c1fdeff20edd56908177e77ee`
+> - Registro: [`reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json`](../../reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json).
+>
+> **Simulación local (commit `67965235342d27bd4f53dc118f3a62a3d78785d0`, `feat(ssdlc): item 5.5 …`, árbol limpio):** [`reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json`](../../reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json) (simulación local, 2026-11-12T03:46:13Z).
 > - **Backend `BLOCKED`:** Trivy image `FAIL`, 9 HIGH (caso negativo).
 > - **Frontend `PUBLISHED`** como `localhost:5055/proyecto-seguridad-frontend@sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed`. El digest del registro, el de `imagetools`, el image ID antes y el image ID tras el pull por digest son iguales.
 > - **Limpieza:** `mechanics_verified: true`, `registry_removed: true`, 0 imágenes `localhost:5055` restantes y la lista de contenedores idéntica antes y después.
@@ -55,7 +59,7 @@ push a main / development
 
 **Secretos:** los secretos solo se pasan por `env` a pasos concretos y al `docker/login-action`; GitHub los enmascara en los logs. `actionlint 1.7.7` sin hallazgos.
 
-**Ejecuciones duplicadas:** cada push dispara este workflow **dos veces** (uno por cada workflow terminado). `concurrency: release-<sha>` las serializa. La primera suele encontrar al otro workflow en curso y no publica; la segunda publica. Si `sha-<SHA>` ya existe, no se reconstruye: así nunca se sobrescribe una etiqueta con una imagen distinta.
+**Ejecuciones duplicadas:** cada push dispara este workflow **dos veces** (uno por cada workflow terminado). `concurrency: release-<sha>` las serializa. Publica la primera corrida cuya compuerta encuentre los 4 checks en `success`. Si el otro workflow aún está en curso, esa corrida termina sin publicar y publica la siguiente. Si `sha-<SHA>` ya existe, no se reconstruye: así nunca se sobrescribe una etiqueta con una imagen distinta. En la publicación real de `ddf5320` el otro workflow ya había terminado, así que publicó la corrida #1 y la #2 se detuvo con "ya existe" (ver abajo).
 
 **Prueba de la compuerta de checks.** El script del job `required-checks` se extrajo tal cual del YAML y se ejecutó con un `gh` simulado (contenedor con `jq`) en 7 escenarios:
 
@@ -93,7 +97,106 @@ docker pull docker.io/elrobb/proyecto-seguridad-backend@sha256:<digest>
 
 **Si se reconstruye, se vuelve a evaluar.** Dos builds del mismo commit no producen el mismo digest. En la simulación local, el frontend del mismo SHA dio `sha256:b8687d39…` en una ejecución y `sha256:4f8e66d2…` en la siguiente, entre otras cosas porque `apk upgrade` puede instalar parches distintos. Por eso el workflow evalúa y publica **la imagen construida en el mismo job**, nunca una reconstrucción. Toda imagen nueva pasa otra vez por Trivy y Conftest antes de aprobarse.
 
+## Primera publicación real (ddf5320)
+
+**Commit:** `ddf53201e2899b99bd859b36f2ba28b8676e9d07` (merge del PR #16 `development → main`).
+
+El push a `main` disparó los dos workflows de la Etapa 3, ambos por `push` y en `success`:
+- CI SSDLC ([43472781348](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472781348)), de 17:26:16 a 17:27:14Z;
+- Contenedores SSDLC ([43472781428](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472781428)), de 17:26:16 a 17:27:17Z.
+
+Cada uno, al terminar, disparó una corrida de `release-deploy.yml`.
+
+| | Corrida #1 ([43472950185](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472950185)) | Corrida #2 ([43472955459](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472955459)) |
+| :--- | :--- | :--- |
+| Disparada por | `workflow_run` de **CI SSDLC** (43472781348; campo `links.triggering_run` del artefacto) | `workflow_run` de **Contenedores SSDLC** (43472781428). Se deduce por eliminación: son los dos únicos workflows del disparador y cada uno corrió una vez sobre este SHA. |
+| Compuerta `required-checks` | 17:27:22–17:27:31Z. Encontró los 4 checks `completed` + `success` y dio `ready=true`. | En cola por `concurrency: release-<sha>` hasta que terminó la #1. Corrió de 17:28:52 a 17:29:07Z y dio `ready=true`. |
+| "Etiquetas inmutables ya publicadas" | `exists=false` | `exists=true` → `##[notice]sha-ddf53201e2899b99bd859b36f2ba28b8676e9d07 ya existe en Docker Hub: no se reconstruye ni se sobrescribe.` |
+| Compuerta final | Build único y `container-scan.sh`: Trivy config PASS; Trivy image backend **PASS (0 HIGH/CRITICAL, 9 suprimidas por `EXC-03`)**, frontend PASS; SBOM de ambos; resultado **APPROVED**. `policy-check.sh`: verify, permitido y demo insegura PASS (25/25 pruebas Rego; los 3 ejemplos inseguros rechazados); resultado **APPROVED**. | Omitida (`skipped`) |
+| Publicación | `docker push` de **esa** imagen como `sha-ddf5320…` (backend y frontend), digest leído con `imagetools`, `pull` por digest y comparación de image ID | Omitida: no se reconstruye ni se publica nada |
+| Artefactos | `release-candidate-ddf5320…` y `release-gate-reports-ddf5320…` | Ninguno |
+
+**Publicación vigente:** la de la corrida #1. Hubo **una sola publicación**; la #2 no generó un segundo digest.
+
+**Por qué siempre hay dos corridas por SHA.** `release-deploy.yml` escucha el `workflow_run` de **dos** workflows (`CI SSDLC` y `Contenedores SSDLC`), y un push dispara los dos. El diseño lo maneja así:
+- **Concurrencia por SHA:** `concurrency: release-<sha>` con `cancel-in-progress: false` serializa las dos corridas. Nunca publican en paralelo y ninguna cancela a la otra.
+- **No republicar:** si `sha-<SHA>` ya existe en Docker Hub, la corrida no reconstruye. Una reconstrucción daría otro digest (ver "Si se reconstruye, se vuelve a evaluar").
+- **Compuerta de checks:** si la primera corrida encuentra el otro workflow aún en curso, termina con `ready=false` sin publicar, y publica la siguiente.
+
+### Registro de la versión candidata
+
+[`reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json`](../../reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json) (copia del artefacto `release-candidate-ddf5320…`):
+
+| Campo | Valor |
+| :--- | :--- |
+| `commit_sha` | `ddf53201e2899b99bd859b36f2ba28b8676e9d07` |
+| `ref` | `main` |
+| `published_at` | `2026-11-13T17:28:37Z` |
+| `backend_image` | `docker.io/elrobb/proyecto-seguridad-backend@sha256:5bfc15e6e7688c167fd4ca1bf1ebdc354c0b16d24b96bb0b2eae6718ef712797` |
+| `frontend_image` | `docker.io/elrobb/proyecto-seguridad-frontend@sha256:e478b510e4ed37192a991aeb8e1d220dffc7351c1fdeff20edd56908177e77ee` |
+| `tags` | `["sha-ddf53201e2899b99bd859b36f2ba28b8676e9d07"]` |
+| `gate` | `required_checks: success (3.1, 3.2, 3.3, 3.4)`, `trivy_image: PASS`, `conftest: PASS` |
+
+### Estado en Docker Hub (verificado el 2026-11-13)
+
+| Repositorio | `sha-ddf53201e2899b99bd859b36f2ba28b8676e9d07` → digest | `development` | `latest` | Etiquetas totales |
+| :--- | :--- | :---: | :---: | :---: |
+| `docker.io/elrobb/proyecto-seguridad-backend` | `sha256:5bfc15e6e7688c167fd4ca1bf1ebdc354c0b16d24b96bb0b2eae6718ef712797` | no existe | no existe | 1 |
+| `docker.io/elrobb/proyecto-seguridad-frontend` | `sha256:e478b510e4ed37192a991aeb8e1d220dffc7351c1fdeff20edd56908177e77ee` | no existe | no existe | 1 |
+
+- Ambos digests tienen **64 caracteres hexadecimales** y coinciden con el artefacto.
+- **`latest` no existe** porque el workflow nunca la publica (`EXT-06`).
+- **`development` no existe** porque este push fue a `main`; esa etiqueta solo se agrega en pushes a `development`. Es el comportamiento esperado, no un fallo.
+
+**Verificación por imagen:**
+- `docker pull` por digest funciona;
+- la etiqueta `org.opencontainers.image.revision` es `ddf53201e2899b99bd859b36f2ba28b8676e9d07`;
+- el usuario es **`node`** en el backend y **`101`** en el frontend (`CTL-05`).
+
+**Comandos usados** (sin credenciales; los repositorios son públicos):
+
+```bash
+SHA=ddf53201e2899b99bd859b36f2ba28b8676e9d07
+# Corridas y artefactos
+gh run list --workflow release-deploy.yml
+gh run view 43472950185 --log ; gh run view 43472955459 --log
+gh run download 43472950185 -D <carpeta temporal fuera del repo>   # la 43472955459 no tiene artefactos
+# Etiqueta → digest (y ausencia de development / latest)
+docker buildx imagetools inspect docker.io/elrobb/proyecto-seguridad-backend:sha-$SHA
+docker buildx imagetools inspect docker.io/elrobb/proyecto-seguridad-frontend:sha-$SHA
+docker buildx imagetools inspect docker.io/elrobb/proyecto-seguridad-backend:development   # ERROR: not found
+docker buildx imagetools inspect docker.io/elrobb/proyecto-seguridad-backend:latest        # ERROR: not found
+curl -s "https://hub.docker.com/v2/repositories/elrobb/proyecto-seguridad-backend/tags?page_size=100"   # count: 1
+# Pull por digest, commit y usuario
+docker pull docker.io/elrobb/proyecto-seguridad-backend@sha256:5bfc15e6e7688c167fd4ca1bf1ebdc354c0b16d24b96bb0b2eae6718ef712797
+docker image inspect --format '{{.Config.User}} {{index .Config.Labels "org.opencontainers.image.revision"}}' \
+  docker.io/elrobb/proyecto-seguridad-backend@sha256:5bfc15e6e7688c167fd4ca1bf1ebdc354c0b16d24b96bb0b2eae6718ef712797
+# → node ddf53201e2899b99bd859b36f2ba28b8676e9d07   (frontend: 101 ddf53201e2899b99bd859b36f2ba28b8676e9d07)
+```
+
+### Reportes de la compuerta final (evidencia versionada)
+
+Son copias de los archivos `-ddf5320…` del artefacto `release-gate-reports-ddf5320…` de la corrida #1. Antes de versionarlos se revisaron así:
+- **Búsqueda de patrones de token y clave** (`dckr_pat_`, `ghp_`, `github_pat_`, `Bearer`, claves privadas, `AKIA…`): sin coincidencias. Las únicas apariciones de "token" son nombres de paquetes npm (`@tokenizer/*`, `token-types`).
+- **Gitleaks v8.21.2** (imagen fijada por digest, `.gitleaks.toml` del repo, `--redact`): `no leaks found`.
+
+| Archivo | Contenido |
+| :--- | :--- |
+| [`container-scan-ddf5320….json`](../../reports/container-scan-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json) | Resumen 3.3: `APPROVED`, `worktree_clean: true`, ignorefile `.trivyignore.yaml`, backend con 9 suprimidas |
+| [`trivy-config-ddf5320….json`](../../reports/trivy-config-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json) | Trivy config (Dockerfiles y compose) |
+| [`trivy-image-backend-ddf5320….json`](../../reports/trivy-image-backend-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json) | Trivy image backend; las 9 CVE de `HAL-04` aparecen en `ExperimentalModifiedFindings` con estado `ignored` |
+| [`trivy-image-frontend-ddf5320….json`](../../reports/trivy-image-frontend-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json) | Trivy image frontend |
+| [`sbom-backend-ddf5320….cdx.json`](../../reports/sbom-backend-ddf53201e2899b99bd859b36f2ba28b8676e9d07.cdx.json) · [`sbom-frontend-ddf5320….cdx.json`](../../reports/sbom-frontend-ddf53201e2899b99bd859b36f2ba28b8676e9d07.cdx.json) | SBOM CycloneDX de las imágenes publicadas |
+| [`conftest-ddf5320….json`](../../reports/conftest-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json) · [`conftest-insecure-demo-ddf5320….txt`](../../reports/conftest-insecure-demo-ddf53201e2899b99bd859b36f2ba28b8676e9d07.txt) | Conftest 3.4: `APPROVED` y la salida del caso permitido y de los rechazados |
+
+> **Nota sobre `release-gate-reports`:** el artefacto también contiene reportes de SHA anteriores (`15c7b8b…`, `36f2324…`, `f045577…`). Esto pasa porque el job sube la carpeta `reports/` completa, que incluye los reportes ya versionados en el repositorio. La evidencia de **esta** publicación son **solo** los archivos que terminan en `-ddf53201e2899b99bd859b36f2ba28b8676e9d07`. Los demás son evidencia histórica del ítem `3.3` y no se evaluaron en esta corrida.
+
 ## Caso negativo: una comprobación obligatoria fallida impide publicar
+
+**Dónde queda demostrado.** En GitHub todavía **no** hay ninguna corrida real de `release-deploy.yml` bloqueada; las dos existentes publicaron o se detuvieron por "ya existe". Que una comprobación obligatoria fallida impide publicar está demostrado con esta evidencia:
+1. **Simulación local sobre `6796523`:** [`reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json`](../../reports/release-local-sim-67965235342d27bd4f53dc118f3a62a3d78785d0.json). Corre el mismo código de compuerta; el backend quedó `BLOCKED` por Trivy image `FAIL` (9 HIGH) y **no se publicó**.
+2. **Check `3.3` en `failure` en GitHub Actions** antes de `EXC-03`. Ejemplo: la corrida [43165841264](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43165841264) (commit `6e22a07`, PR #6, 2026-11-12) terminó con `3.3 Imagen candidata…` en `failure`. Es el mismo check que `required-checks` exige en `success`. En ese momento `release-deploy.yml` aún no estaba en `main`, así que esta corrida demuestra que el check falla, no que el workflow de publicación se bloqueó.
+3. **Prueba de la lógica de `required-checks`** con un `gh` simulado en 7 escenarios (tabla de "Prueba de la compuerta de checks"): un check fallido, omitido o ausente da exit 1 y no publica. Esta prueba se ejecutó durante el desarrollo y **no tiene un reporte versionado**.
 
 Hasta la aprobación de `EXC-03`, el **backend** tenía 9 vulnerabilidades HIGH corregibles (`multer`, `body-parser`, `lodash`; `HAL-04`; ver [`03-evidencia-conftest-trivy.md`](./03-evidencia-conftest-trivy.md)). La simulación de `6796523` (evidencia vigente arriba) se ejecutó **antes** de la excepción. En ese estado:
 
@@ -121,7 +224,7 @@ Hasta la aprobación de `EXC-03`, el **backend** tenía 9 vulnerabilidades HIGH 
 
 ## `deploy/last-approved-release.json` (Roberto, `6.6`)
 
-Ese archivo (no modificado) contiene **digests ficticios**: `sha256:9e06aae000…0001` y `…0002`. Cuando el workflow publique un candidato real, Roberto puede reemplazarlos con los valores `backend_image` / `frontend_image` del artefacto `release-candidate-<sha>`, que ya vienen en formato `docker.io/elrobb/proyecto-seguridad-<c>@sha256:…`. Así su rollback (`6.6`) apuntará a imágenes que existen y que pasaron la compuerta.
+Ese archivo originalmente contenía **digests ficticios** (`sha256:9e06aae000…0001` y `…0002`); quedó actualizado posteriormente hacia el baseline real verificado por digest (`384d680828efecfbefbada3ca3bbd2e61f36cc48`, corrida `43490080513`, documentado en [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md) y [`docs/ssdcl/06-smoke-tests-y-rollback.md`](./06-smoke-tests-y-rollback.md), tras la primera publicación `ddf5320` en [`reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json`](../../reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json)) para que el rollback (`6.6`) apunte a imágenes reales publicadas en Docker Hub que pasaron la compuerta.
 
 ## Limitaciones y dependencias pendientes
 
@@ -129,10 +232,10 @@ Ese archivo (no modificado) contiene **digests ficticios**: `sha256:9e06aae000�
   - la rama `development` existe en `origin`;
   - los secretos `DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN` están configurados (`gh api …/actions/secrets` lista ambos nombres; los valores no son visibles);
   - los 4 checks `3.1`–`3.4` son obligatorios en `main` (`gh pr checks 6 --required`).
-  - Las imágenes se publicarán en la cuenta **`elrobb`**: `docker.io/elrobb/proyecto-seguridad-backend` y `docker.io/elrobb/proyecto-seguridad-frontend`.
-- **Ejecución real en Docker Hub aún pendiente:** requiere que `release-deploy.yml` esté en `main` y un push a `main`/`development` con los 4 checks en `success`. Hasta entonces la evidencia es la simulación local y la validación del workflow (actionlint + prueba de la compuerta de checks).
+  - Las imágenes se publican en la cuenta **`elrobb`**: `docker.io/elrobb/proyecto-seguridad-backend` y `docker.io/elrobb/proyecto-seguridad-frontend`.
+- **Ejecución real en Docker Hub: realizada** el 2026-11-13 sobre `ddf5320` (ver [Primera publicación real](#primera-publicación-real-ddf5320)). Fue un push a `main`, así que todavía no hay una publicación desde `development` ni existe la etiqueta `development`; aparecerá en el primer push a `development` con los 4 checks en `success`.
 - **`workflow_run` solo funciona desde `main`:** GitHub usa la versión del workflow de la rama por defecto. `release-deploy.yml` debe estar fusionado en `main` para dispararse, incluso para pushes a `development`.
 - **Depende de `EXC-03`:** con la excepción vigente `3.3` puede pasar. Si vence (`2026-12-15`) sin que `HAL-04` se corrija, `3.3` vuelve a fallar y no se publica nada en `main`/`development`. Es el comportamiento correcto.
-- **El nombre de usuario de Docker Hub es un secreto (`SEC-03`):** GitHub lo enmascara (`***`) en los logs y en los nombres de imagen que aparecen ahí. El artefacto JSON sí lo contiene, porque es necesario para desplegar.
+- **El nombre de usuario de Docker Hub es un secreto (`SEC-03`):** GitHub lo enmascara (`***`) en los logs y en los nombres de imagen que aparecen ahí. El artefacto JSON sí lo contiene, porque es necesario para desplegar. El nombre de usuario no es una credencial: forma parte del nombre público de la imagen, y por eso aparece en `reports/candidate-release-ddf5320….json` y en este documento. La credencial es `DOCKERHUB_TOKEN`, que no aparece en ningún archivo.
 - **Re-escaneo en el job de publicación:** las vulnerabilidades se evalúan con la base de Trivy del momento. Una imagen aprobada en `3.3` podría fallar minutos después si se publica una CVE nueva; el job falla y no publica, como corresponde.
 - **Diferencias de la simulación:** usa HTTP sin TLS sobre loopback y no tiene autenticación; no prueba el login ni los permisos del token de Docker Hub. Con el *containerd image store* de Docker Desktop, el image ID local es el digest del índice, y por eso coincide exactamente con el del registro.

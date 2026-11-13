@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Res, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Param, Res, HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
 import { SnitService } from './snit.service';
 

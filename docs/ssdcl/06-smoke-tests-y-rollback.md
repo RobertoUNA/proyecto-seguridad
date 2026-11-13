@@ -21,7 +21,9 @@ Se implementó el módulo `HealthModule` en NestJS para comprobar en tiempo real
 
 ## 2. Automatización de Comprobaciones Posteriores al Despliegue (`Ítem 6.5`)
 
-Los scripts [`scripts/smoke-test.ps1`](../../scripts/smoke-test.ps1) (Windows/PowerShell) y [`scripts/smoke-test.sh`](../../scripts/smoke-test.sh) (Linux/GitHub Actions) ejecutan **8 comprobaciones automatizadas** contra la instancia recién desplegada y generan un reporte JSON auditable (`reports/smoke-test-report.json`):
+Los scripts [`scripts/smoke-test.ps1`](../../scripts/smoke-test.ps1) (Windows/PowerShell) y [`scripts/smoke-test.sh`](../../scripts/smoke-test.sh) (Linux/GitHub Actions) ejecutan **8 comprobaciones automatizadas** contra la instancia recién desplegada y generan un reporte JSON auditable (`reports/smoke-test-<sha>-<timestamp>.json` por defecto cuando no se pasa `-ReportPath`, o la ruta indicada explícitamente, evitando sobrescribir la evidencia versionada [`reports/smoke-test-report.json`](../../reports/smoke-test-report.json)).
+
+Cada reporte JSON generado registra la versión verificada mediante `commit_sha` (extraído en vivo de `GET /api/health` con respaldo en `COMMIT_SHA`/Git SHA), `health_commit_sha`, `app_version` e `image_digest` (`DEPLOYED_IMAGE_DIGEST` cuando proviene de contenedor o `no-aplica` en ejecuciones desde código fuente).
 
 | # | Comprobación | Ruta Evaluada | Resultado Esperado | Flujo / Riesgo Cubierto |
 | :---: | :--- | :--- | :--- | :--- |
@@ -39,10 +41,12 @@ Los scripts [`scripts/smoke-test.ps1`](../../scripts/smoke-test.ps1) (Windows/Po
 ## 3. Procedimiento de Recuperación / Rollback y Demostración (`Ítem 6.6`)
 
 ### 3.1 Identificación de la Versión de Recuperación
-El archivo versionado [`deploy/last-approved-release.json`](../../deploy/last-approved-release.json) conserva la identidad exacta del último candidato aprobado:
-- `release_id`: `v1.0.0-rc0-baseline`
-- `commit_sha`: `4844d2a`
-- `backend_image` y `frontend_image`: referenciadas por digest inmutable (`sha256:...`).
+El archivo versionado [`deploy/last-approved-release.json`](../../deploy/last-approved-release.json) conserva la identidad de la versión de recuperación aprobada por digest:
+- `release_id`: `v1.0.0-384d680-baseline`
+- `commit_sha`: `384d680828efecfbefbada3ca3bbd2e61f36cc48`
+- `backend_image` y `frontend_image`: referencian los digests reales publicados en Docker Hub por el workflow del ítem `5.5` en la corrida `43490080513` (compatibles con Render y Docker Compose al incluir `API_UPSTREAM` configurable en Nginx, documentado en [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md); candidato vigente en `development`: `6342cd32e5cb675ca7e26448e93cb1ae795d0d16` en [`reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json`](../../reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json)):
+  - `docker.io/elrobb/proyecto-seguridad-backend@sha256:af8327426f52f6565f20fa4cc2aa5d57902dded2b9f2fe0e8fe7fef53616f7ac`
+  - `docker.io/elrobb/proyecto-seguridad-frontend@sha256:bf74dc0f54f083be68774b34f5076c0ff4f7e36295c7c55bcafda181c2fb2d54`
 - **Tratamiento de Base de Datos en Rollback:** Todas las migraciones SQL del proyecto (`001` a `004`) son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`), por lo que regresar el contenedor backend a la imagen anterior aprobada es directamente compatible sin pérdida de datos ni necesidad de migraciones destructivas (`requires_db_down_migration: false`).
 
 ### 3.2 Evidencia de Detección de Fallo, Rollback y Re-verificación
@@ -78,4 +82,13 @@ El archivo versionado [`deploy/last-approved-release.json`](../../deploy/last-ap
 
    [RECUPERACION EXITOSA] El sistema volvio a la version v1.0.0-rc0-baseline y aprobo las comprobaciones.
    ```
-   Los reportes generados quedan guardados en [`reports/smoke-test-report.json`](../../reports/smoke-test-report.json) y [`reports/rollback-evidence.json`](../../reports/rollback-evidence.json).
+   Los reportes históricos de esa demostración base (`v1.0.0-rc0-baseline`) quedan guardados en [`reports/smoke-test-report.json`](../../reports/smoke-test-report.json) y [`reports/rollback-evidence.json`](../../reports/rollback-evidence.json); [`deploy/last-approved-release.json`](../../deploy/last-approved-release.json) apunta hoy a la versión de recuperación aprobada `v1.0.0-384d680-baseline` (compatible con Render y Docker Compose, corrida `43490080513`), mientras que el candidato más reciente en `development` corresponde a `6342cd3` ([`reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json`](../../reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json)).
+
+---
+
+## 4. Limitaciones Conocidas del Alcance (Etapa 6)
+
+1. **Sin despliegue remoto real ejecutado desde `deploy-verify.yml`:** [`.github/workflows/deploy-verify.yml`](../../.github/workflows/deploy-verify.yml) compila desde el código fuente y levanta la API localmente en el runner (`http://localhost:3000`) contra un servicio `postgis/postgis:16-3.4` efímero.
+2. **Sin pruebas E2E ni DAST en el alcance seleccionado:** El equipo no seleccionó los ítems `4.4` (pruebas E2E en navegador) ni `4.7` (análisis DAST con OWASP ZAP); por ello, la verificación posterior al despliegue se acota a health checks y los 8 smoke tests HTTP/JSON de la API (`6.5`).
+3. **Alcance de la simulación de fallo (`simulate_failure`):** Apuntar `smoke-test.sh` al puerto `3999` en `deploy-verify.yml` (o `-SimulateFailureFirst` en `rollback.ps1`) simula un **servicio caído o inalcanzable** para demostrar la detección del fallo y el disparo automático del rollback (`6.6`), no una versión degradada que responda con errores de negocio.
+4. **Dependencia de `deploy/docker-compose.prod.yml` para rollback automatizado por Compose:** Tanto [`scripts/rollback.sh`](../../scripts/rollback.sh) como [`scripts/rollback.ps1`](../../scripts/rollback.ps1) ejecutan `docker compose -f deploy/docker-compose.prod.yml up -d` usando los digests reales de [`deploy/last-approved-release.json`](../../deploy/last-approved-release.json) (`384d680` de `5.5`, corrida `43490080513`) cuando ese archivo existe y Docker está disponible; como el entorno productivo (`6.2`) utiliza Render (`frontend/nginx.conf.template`), mientras no exista `deploy/docker-compose.prod.yml` la demostración local repite los smoke tests sobre el entorno activo y la reversión en Render se realiza seleccionando esos mismos digests de `384d680` en el panel de Render (ver [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md)).
