@@ -54,7 +54,7 @@ El agente **TIENE PROHIBIDO** crear, editar o eliminar los siguientes componente
 3. **Archivos de Secretos y Configuración Local:** `.env`, `.env.local`, `.docker/config.json`.
 4. **Scripts de Verificación, Escaneo y Rollback:** `scripts/agent-verify.ps1`, `scripts/agent-verify.sh`, `scripts/container-scan.*`, `scripts/policy-check.*`, `scripts/rollback.*`.
 5. **Configuración del Hook y Contador de Reintentos:** `.claude/settings.json`, `.claude/verify-attempts` (mecanismo de supervisión que evita bucles y reinicios no autorizados).
-6. **Configuración de Contenedores y Despliegue:** `docker-compose.yml`, `policy/examples/**`, `deploy/**`.
+6. **Configuración de Contenedores y Despliegue:** `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf*` (incluye `frontend/nginx.conf.template`: proxy de `/api`, sobrescritura de `X-Forwarded-For` y verificación TLS del upstream), `policy/examples/**`, `deploy/**`.
 7. **Registro de Hallazgos y Excepciones:** `docs/ssdcl/REGISTRO-HALLAZGOS.md`, `.trivyignore.yaml` (las supresiones de CVEs requieren aprobación humana formal en el registro único).
 
 ### ⚠️ 3.2 Protocolo ante Dudas de Permisos o Alcance
@@ -88,16 +88,24 @@ El agente debe verificar localmente el impacto de sus cambios utilizando **únic
 # Frontend (Linter oxlint y compilación estricta TypeScript con Vite)
 cd frontend && npm run lint && npm run build
 
-# Backend (Compilación TypeScript estricta con NestJS)
-cd backend && npm run build
+# Backend (ESLint y compilación TypeScript estricta con NestJS)
+cd backend && npm run lint && npm run build
 ```
-> *Nota sobre Backend:* El archivo `backend/package.json` dispone actualmente del script `build`. Los scripts `backend:lint` y `backend:test` corresponden al Ítem 2.2 y se encuentran en proceso de integración.
 
 ### 5.2 Pruebas Automatizadas
 ```bash
+# Pruebas unitarias del Backend (Jest; p. ej. src/modules/cruce/cruce.service.spec.ts)
+cd backend && npm test
+
+# Pruebas de integración API + BD (Jest + Supertest; backend/test/api.integration.spec.ts)
+# Requiere PostgreSQL/PostGIS con las migraciones 001..004 y backend/database/seed_test.sql cargadas,
+# y las variables DB_* del entorno (igual que el job 3.1 de .github/workflows/ci.yml).
+cd backend && npm run test:integration
+
 # Pruebas unitarias de Workers Python (Verificación de parsing e integridad COSEVI)
 python -m unittest discover -s workers/cosevi -p "test_*.py" -v
 ```
+> Scripts verificados en `backend/package.json`: `lint` (`eslint "src/**/*.ts"`), `build` (`nest build`), `test` (`jest`) y `test:integration` (`jest --config test/jest-integration.json --runInBand`).
 
 ### 5.3 Verificación SAST y Secretos
 ```bash
@@ -121,7 +129,7 @@ Al utilizar asistentes con soporte para hooks de parada (ej. Claude Code):
   - En Windows ejecuta: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/agent-verify.ps1 -Hook`
   - En Linux/macOS ejecuta: `bash scripts/agent-verify.sh --hook`
 - Si detecta un fallo, el agente recibe el extracto del error con código `exit 2` para corregirlo en su siguiente turno.
-- **Límite de 3 intentos:** Si el agente acumula 3 fallos consecutivos, el script se bloquea automáticamente (`reports/agent-verify-blocked-*.json`), emite `exit 0` con mensaje structured en stderr y solicita intervención humana para evitar bucles destructivos.
+- **Límite de 3 intentos:** Si el agente acumula 3 fallos consecutivos, el script se bloquea automáticamente: guarda `reports/agent-verify-blocked-<ts>.json`, escribe el mensaje `BLOQUEO: requiere intervención humana…` en stderr y emite por **stdout** el JSON `{"systemMessage": "..."}`, que es lo que Claude Code muestra al usuario, y termina con `exit 0` para no entrar en un bucle ([`scripts/agent-verify.ps1:351-355`](./scripts/agent-verify.ps1)). Requiere intervención humana.
 
 ### 6.2 Ejecución Manual
 Para ejecutar la suite completa de verificaciones del agente manualmente:
