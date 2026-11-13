@@ -1,0 +1,56 @@
+{
+  "item": "6.2",
+  "commit_sha_expected": "6342cd32e5cb675ca7e26448e93cb1ae795d0d16",
+  "environment": "Render — Pruebas (Ohio, Free)",
+  "checked_at": "2026-11-13T21:48:24Z",
+  "checks": [
+    {
+      "name": "via_frontend",
+      "url": "https://proyecto-seguridad-frontend.onrender.com/api/health",
+      "http_status": 200,
+      "response_headers": {
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-content-type-options": "nosniff",
+        "x-correlation-id": "72e8f898-4459-4b7b-b1c0-42f4fefbea5e",
+        "x-frame-options": "DENY"
+      },
+      "body": {
+        "status": "ok",
+        "timestamp": "2026-11-13T21:48:25.572Z",
+        "uptime_seconds": 56,
+        "version": "0.1.0",
+        "commit_sha": "6342cd32e5cb675ca7e26448e93cb1ae795d0d16",
+        "database": {
+          "status": "up",
+          "postgis_version": "3.6 USE_GEOS=1 USE_PROJ=1 USE_STATS=1"
+        },
+        "fuente": "INTERNAL/HEALTH",
+        "fecha_obtencion": "2026-11-13T21:48:25.572Z"
+      },
+      "commit_sha_match": true
+    },
+    {
+      "name": "via_backend",
+      "url": "https://proyecto-seguridad-backend-ajby.onrender.com/api/health",
+      "http_status": 200,
+      "response_headers": {
+        "x-correlation-id": "b0b2a4d6-3d15-447a-938d-8ba31e90f7dd"
+      },
+      "body": {
+        "status": "ok",
+        "timestamp": "2026-11-13T21:48:25.917Z",
+        "uptime_seconds": 56,
+        "version": "0.1.0",
+        "commit_sha": "6342cd32e5cb675ca7e26448e93cb1ae795d0d16",
+        "database": {
+          "status": "up",
+          "postgis_version": "3.6 USE_GEOS=1 USE_PROJ=1 USE_STATS=1"
+        },
+        "fuente": "INTERNAL/HEALTH",
+        "fecha_obtencion": "2026-11-13T21:48:25.917Z"
+      },
+      "commit_sha_match": true
+    }
+  ],
+  "result": "PASS"
+}
