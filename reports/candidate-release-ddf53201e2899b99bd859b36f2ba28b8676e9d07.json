@@ -1,0 +1,43 @@
+{
+  "item": "5.5",
+  "commit_sha": "ddf53201e2899b99bd859b36f2ba28b8676e9d07",
+  "ref": "main",
+  "published_at": "2026-11-13T17:28:37Z",
+  "backend_image": "docker.io/elrobb/proyecto-seguridad-backend@sha256:5bfc15e6e7688c167fd4ca1bf1ebdc354c0b16d24b96bb0b2eae6718ef712797",
+  "frontend_image": "docker.io/elrobb/proyecto-seguridad-frontend@sha256:e478b510e4ed37192a991aeb8e1d220dffc7351c1fdeff20edd56908177e77ee",
+  "local_image_ids": {
+    "backend": "sha256:a11a9dc418a7569c33f8619d6a8730ad5d3afe8b3d37b232d9fa921174335859",
+    "frontend": "sha256:10481762ce8daa811a3043566e1a1c2ebcacfc2be46baa782be00b9aabbfaa03"
+  },
+  "tags": [
+    "sha-ddf53201e2899b99bd859b36f2ba28b8676e9d07"
+  ],
+  "gate": {
+    "required_checks": "success (3.1, 3.2, 3.3, 3.4)",
+    "trivy_image": "PASS",
+    "conftest": "PASS"
+  },
+  "links": {
+    "release_run": "https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472950185",
+    "triggering_run": "https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472781348"
+  },
+  "artifacts": {
+    "this_run": [
+      "release-candidate-ddf53201e2899b99bd859b36f2ba28b8676e9d07",
+      "release-gate-reports-ddf53201e2899b99bd859b36f2ba28b8676e9d07"
+    ],
+    "ci": [
+      "quality-and-smoke-reports-ddf53201e2899b99bd859b36f2ba28b8676e9d07",
+      "security-reports-ddf53201e2899b99bd859b36f2ba28b8676e9d07"
+    ],
+    "containers": [
+      "container-reports-ddf53201e2899b99bd859b36f2ba28b8676e9d07",
+      "conftest-reports-ddf53201e2899b99bd859b36f2ba28b8676e9d07"
+    ],
+    "sbom": [
+      "sbom-backend-ddf53201e2899b99bd859b36f2ba28b8676e9d07.cdx.json",
+      "sbom-frontend-ddf53201e2899b99bd859b36f2ba28b8676e9d07.cdx.json"
+    ]
+  },
+  "deploy_note": "Desplegar por digest (backend_image / frontend_image), nunca por etiqueta."
+}
