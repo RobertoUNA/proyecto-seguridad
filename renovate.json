@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "America/Costa_Rica",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "minimumReleaseAge": "3 days",
+  "lockFileMaintenance": { "enabled": true, "schedule": ["before 6am on monday"] },
+  "vulnerabilityAlerts": { "labels": ["security"], "schedule": ["at any time"] },
+  "enabledManagers": ["npm", "pip_requirements", "github-actions", "dockerfile", "docker-compose"],
+  "packageRules": [
+    {
+      "description": "NestJS 10 -> 11 es migracion mayor: no abrir PR automatico (ver HAL-04 / EXC-03)",
+      "matchPackageNames": ["@nestjs/{/,}**"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Actualizaciones menores y parches de dependencias de desarrollo en un solo PR",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev-dependencies"
+    },
+    {
+      "description": "Las acciones de GitHub se mantienen fijadas por SHA (Item 3.5)",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    }
+  ]
+}
