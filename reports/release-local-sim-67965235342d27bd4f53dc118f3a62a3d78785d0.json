@@ -1,0 +1,63 @@
+{
+    "item":  "5.5",
+    "commit":  "67965235342d27bd4f53dc118f3a62a3d78785d0",
+    "worktree_clean":  true,
+    "executed_at":  "2026-11-12T03:46:13Z",
+    "mode":  "simulación local (registro temporal registry:2.8.3 en 127.0.0.1:5055, sin Docker Hub)",
+    "registry_image":  "registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373",
+    "gate_rule":  "Se publica una imagen solo si Trivy image (HIGH/CRITICAL corregibles), Conftest del Dockerfile y de docker-compose.yml y conftest verify están en PASS",
+    "images":  [
+                   {
+                       "component":  "backend",
+                       "local_image":  "proyecto-seguridad-backend:sha-67965235342d27bd4f53dc118f3a62a3d78785d0",
+                       "image_id_before":  "sha256:84143eaddf150495d4f35267153d980a8be1d3f5af83791890e38e7676f7e9dc",
+                       "config_digest":  "sha256:7286cc153e04abe4e0e6f04770676ab2989ba7acad8e1a0907fbf78a978f7e94",
+                       "gate":  {
+                                    "trivy_image":  "FAIL",
+                                    "trivy_vulnerabilities":  {
+                                                                  "critical":  0,
+                                                                  "high":  9
+                                                              },
+                                    "conftest_dockerfile":  "PASS",
+                                    "conftest_compose":  "PASS",
+                                    "conftest_verify":  "PASS"
+                                },
+                       "status":  "BLOCKED",
+                       "reason":  "Una comprobación obligatoria falló (Trivy image: FAIL; Conftest Dockerfile: PASS); no se publica"
+                   },
+                   {
+                       "component":  "frontend",
+                       "local_image":  "proyecto-seguridad-frontend:sha-67965235342d27bd4f53dc118f3a62a3d78785d0",
+                       "image_id_before":  "sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed",
+                       "config_digest":  "sha256:abf42824dbe22f7862c6818dcbc5e37ffde145a8a87101da88cc508beadc0f31",
+                       "gate":  {
+                                    "trivy_image":  "PASS",
+                                    "trivy_vulnerabilities":  {
+                                                                  "critical":  0,
+                                                                  "high":  0
+                                                              },
+                                    "conftest_dockerfile":  "PASS",
+                                    "conftest_compose":  "PASS",
+                                    "conftest_verify":  "PASS"
+                                },
+                       "status":  "PUBLISHED",
+                       "published_ref":  "localhost:5055/proyecto-seguridad-frontend:sha-67965235342d27bd4f53dc118f3a62a3d78785d0",
+                       "image_ref_by_digest":  "localhost:5055/proyecto-seguridad-frontend@sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed",
+                       "registry_digest":  "sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed",
+                       "imagetools_digest":  "sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed",
+                       "image_id_after_tag":  "sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed",
+                       "image_id_after_pull_by_digest":  "sha256:fde4ed562c4b3b38400b527c0468bb68042760722ac360c5c914d205edaff9ed",
+                       "same_image":  true,
+                       "digest_equals_local_image_id":  true
+                   }
+               ],
+    "published":  [
+                      "frontend"
+                  ],
+    "blocked":  [
+                    "backend"
+                ],
+    "negative_case":  "Una comprobación obligatoria fallida impide publicar: backend",
+    "mechanics_verified":  true,
+    "registry_removed":  true
+}

@@ -1,0 +1,24 @@
+{
+    "item":  "2.4",
+    "status":  "BLOCKED",
+    "message":  "BLOQUEO: requiere intervención humana",
+    "attempts":  3,
+    "max_attempts":  3,
+    "commit":  "8e49b16621dadd2b0083e65956e8dccbda5c812d",
+    "blocked_at":  "2026-11-12T00:58:20Z",
+    "failed_steps":  [
+                         {
+                             "id":  "security:gitleaks",
+                             "status":  "FAIL",
+                             "command":  "gitleaks dir --config .gitleaks.toml --redact",
+                             "seconds":  0.9,
+                             "excerpt":  [
+                                             "leak: regla github-pat en backend/src/demo-secret.temp.ts:3 (valor enmascarado: REDACTED)"
+                                         ],
+                             "files":  [
+                                           "backend/src/demo-secret.temp.ts:3"
+                                       ]
+                         }
+                     ],
+    "next_steps":  "Revisar los pasos fallidos. Tras corregir (o decidir una excepción con revisión de otro integrante), borrar .claude/verify-attempts o iniciar una tarea nueva."
+}
