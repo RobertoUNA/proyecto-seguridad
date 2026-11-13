@@ -17,18 +17,40 @@ echo " Ejecutando Health Checks y Smoke Tests contra: ${BASE_URL}"
 echo "=================================================================="
 
 FAILED=0
+HEALTH_COMMIT_SHA=""
+HEALTH_VERSION=""
+TARGET_COMMIT_SHA="${COMMIT_SHA:-$(git rev-parse --short HEAD 2>/dev/null || echo 'local')}"
+DEPLOYED_IMAGE_DIGEST="${DEPLOYED_IMAGE_DIGEST:-no-aplica (ejecucion desde codigo fuente sin imagen por digest)}"
+SMOKE_BODY_FILE="$(dirname "$REPORT_PATH")/.smoke_body_$$.tmp"
+trap 'rm -f "$SMOKE_BODY_FILE"' EXIT
+
+PYTHON_BIN=""
+if command -v python3 >/dev/null 2>&1 && python3 -c "import json" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1 && python -c "import json" >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+fi
 
 check_status() {
   local name="$1"
   local url="$2"
   local expected="$3"
   local code
-  code=$(curl -s -o /tmp/smoke_body.json -w "%{http_code}" "$url" || echo "000")
+  code=$(curl -s -o "$SMOKE_BODY_FILE" -w "%{http_code}" "$url" || echo "000")
   if [[ "$code" == "$expected" ]]; then
     echo "  [PASS] ${name} (HTTP ${code})"
+    if [[ "$name" == "1. Health Check (/api/health)" && "$code" == "200" ]]; then
+      if [[ -n "$PYTHON_BIN" ]]; then
+        HEALTH_COMMIT_SHA=$("$PYTHON_BIN" -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); print(d.get("commit_sha") or "")' "$SMOKE_BODY_FILE" 2>/dev/null || echo "")
+        HEALTH_VERSION=$("$PYTHON_BIN" -c 'import json,sys; d=json.load(open(sys.argv[1], encoding="utf-8")); print(d.get("version") or "")' "$SMOKE_BODY_FILE" 2>/dev/null || echo "")
+      elif command -v jq >/dev/null 2>&1; then
+        HEALTH_COMMIT_SHA=$(jq -r '.commit_sha // empty' "$SMOKE_BODY_FILE" 2>/dev/null || echo "")
+        HEALTH_VERSION=$(jq -r '.version // empty' "$SMOKE_BODY_FILE" 2>/dev/null || echo "")
+      fi
+    fi
   else
     echo "  [FAIL] ${name} (Esperado HTTP ${expected}, recibido HTTP ${code})"
-    cat /tmp/smoke_body.json || true
+    cat "$SMOKE_BODY_FILE" 2>/dev/null || true
     FAILED=$((FAILED + 1))
   fi
 }
@@ -46,16 +68,46 @@ STATUS="APPROVED"
 if [[ "$FAILED" -gt 0 ]]; then
   STATUS="FAILED"
 fi
+PASSED=$((8 - FAILED))
+VERIFIED_COMMIT_SHA="${HEALTH_COMMIT_SHA:-$TARGET_COMMIT_SHA}"
+EXECUTED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-cat > "$REPORT_PATH" <<EOF
+if [[ -n "$PYTHON_BIN" ]]; then
+  "$PYTHON_BIN" - "$REPORT_PATH" "$BASE_URL" "$EXECUTED_AT" "$VERIFIED_COMMIT_SHA" "$HEALTH_COMMIT_SHA" "$HEALTH_VERSION" "$DEPLOYED_IMAGE_DIGEST" "$PASSED" "$FAILED" "$STATUS" <<'PYEOF'
+import json, sys
+_, out_path, base_url, executed_at, commit_sha, health_sha, app_ver, digest, passed, failed, status = sys.argv
+payload = {
+    "base_url": base_url,
+    "executed_at": executed_at,
+    "commit_sha": commit_sha,
+    "health_commit_sha": health_sha or None,
+    "app_version": app_ver or None,
+    "image_digest": digest,
+    "total_checks": 8,
+    "passed": int(passed),
+    "failed": int(failed),
+    "status": status,
+}
+with open(out_path, "w", encoding="utf-8") as fh:
+    json.dump(payload, fh, indent=2, ensure_ascii=False)
+    fh.write("\n")
+PYEOF
+else
+  cat > "$REPORT_PATH" <<EOF
 {
   "base_url": "${BASE_URL}",
-  "executed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "executed_at": "${EXECUTED_AT}",
+  "commit_sha": "${VERIFIED_COMMIT_SHA}",
+  "health_commit_sha": "${HEALTH_COMMIT_SHA}",
+  "app_version": "${HEALTH_VERSION}",
+  "image_digest": "${DEPLOYED_IMAGE_DIGEST}",
   "total_checks": 8,
+  "passed": ${PASSED},
   "failed": ${FAILED},
   "status": "${STATUS}"
 }
 EOF
+fi
 
 if [[ "$FAILED" -gt 0 ]]; then
   echo "[RESULTADO] FALLO (${FAILED} comprobaciones fallaron). Se bloquea despliegue / inicia rollback."

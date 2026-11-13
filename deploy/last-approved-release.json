@@ -1,10 +1,10 @@
 {
-  "release_id": "v1.0.0-rc0-baseline",
-  "approved_at": "2026-11-10T21:00:00Z",
-  "commit_sha": "4844d2a",
-  "backend_image": "docker.io/robertouna/proyecto-seguridad-backend@sha256:9e06aae000000000000000000000000000000000000000000000000000000001",
-  "frontend_image": "docker.io/robertouna/proyecto-seguridad-frontend@sha256:9e06aae000000000000000000000000000000000000000000000000000000002",
+  "release_id": "v1.0.0-384d680-baseline",
+  "approved_at": "2026-11-13T19:14:23Z",
+  "commit_sha": "384d680828efecfbefbada3ca3bbd2e61f36cc48",
+  "backend_image": "docker.io/elrobb/proyecto-seguridad-backend@sha256:af8327426f52f6565f20fa4cc2aa5d57902dded2b9f2fe0e8fe7fef53616f7ac",
+  "frontend_image": "docker.io/elrobb/proyecto-seguridad-frontend@sha256:bf74dc0f54f083be68774b34f5076c0ff4f7e36295c7c55bcafda181c2fb2d54",
   "db_schema_version": "004_create_infraestructura.sql",
   "requires_db_down_migration": false,
-  "notes": "Versión base de recuperación verificada con las 4 migraciones aditivas idempotentes (CREATE TABLE IF NOT EXISTS)."
+  "notes": "Baseline de recuperación verificado para Render y Docker Compose publicado por 5.5 en Docker Hub (run 43490080513, docs/releases/v1.0.0-rc1.md). Compatible con las 4 migraciones aditivas idempotentes (CREATE TABLE IF NOT EXISTS)."
 }

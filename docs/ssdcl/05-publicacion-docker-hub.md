@@ -241,7 +241,7 @@ Hasta la aprobación de `EXC-03`, el **backend** tenía 9 vulnerabilidades HIGH 
 
 ## `deploy/last-approved-release.json` (Roberto, `6.6`)
 
-Ese archivo (no modificado) contiene **digests ficticios**: `sha256:9e06aae000…0001` y `…0002`. Ya existen candidatos reales: los valores `backend_image` / `frontend_image` de los artefactos `release-candidate-<sha>`. En Render, la versión de recuperación es `384d680`; el frontend de `ddf5320` no arranca fuera de compose. Los valores vienen en formato `docker.io/elrobb/proyecto-seguridad-<c>@sha256:…`. Actualizarlos le corresponde a Roberto; así su rollback (`6.6`) apuntará a imágenes que existen y que pasaron la compuerta.
+Ese archivo originalmente contenía **digests ficticios** (`sha256:9e06aae000…0001` y `…0002`); quedó actualizado posteriormente hacia el baseline real verificado por digest (`384d680828efecfbefbada3ca3bbd2e61f36cc48`, corrida `43490080513`, documentado en [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md) y [`docs/ssdcl/06-smoke-tests-y-rollback.md`](./06-smoke-tests-y-rollback.md), tras la primera publicación `ddf5320` en [`reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json`](../../reports/candidate-release-ddf53201e2899b99bd859b36f2ba28b8676e9d07.json)) —en Render, la versión de recuperación es `384d680`, ya que el frontend de `ddf5320` no arranca fuera de Docker Compose— para que el rollback (`6.6`) apunte a imágenes reales publicadas en Docker Hub que pasaron la compuerta.
 
 ## Limitaciones y dependencias pendientes
 
