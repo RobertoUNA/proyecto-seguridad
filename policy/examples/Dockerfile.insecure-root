@@ -1,0 +1,9 @@
+# =============================================================================
+# EJEMPLO INSEGURO — solo para demostrar el rechazo de policy/container.rego (Ítem 3.4).
+# NO se construye ni se despliega. Viola la Política 2: el último USER es root (THR-05).
+# =============================================================================
+FROM nginxinc/nginx-unprivileged:alpine
+USER root
+RUN apk upgrade --no-cache
+# Falta volver a `USER 101`: el contenedor queda como root.
+EXPOSE 8080

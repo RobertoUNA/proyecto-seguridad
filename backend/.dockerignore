@@ -1,0 +1,13 @@
+# Ítem 3.3: nada de dependencias locales, compilados, secretos ni reportes dentro del contexto de build.
+node_modules
+dist
+coverage
+reports
+.git
+.gitignore
+.env
+.env.*
+*.local
+*.log
+Dockerfile
+.dockerignore
