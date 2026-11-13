@@ -54,6 +54,8 @@ El agente **TIENE PROHIBIDO** crear, editar o eliminar los siguientes componente
 3. **Archivos de Secretos y Configuración Local:** `.env`, `.env.local`, `.docker/config.json`.
 4. **Scripts de Verificación y Rollback:** `scripts/agent-verify.ps1`, `scripts/agent-verify.sh`, `scripts/rollback.*`.
 5. **Registro de Hallazgos y Excepciones:** `docs/ssdcl/REGISTRO-HALLAZGOS.md` (las excepciones de seguridad solo pueden ser aprobadas por integrantes humanos).
+6. **Configuración del Hook y Contador:** `.claude/settings.json`, `.claude/verify-attempts` (mecanismo de supervisión y límite de intentos).
+7. **Excepciones de Contenedores:** `.trivyignore.yaml` (las supresiones temporales de CVEs requieren aprobación humana formal en el registro único).
 
 ### ⚠️ 3.2 Protocolo ante Dudas de Permisos o Alcance
 Si una tarea técnica presenta ambigüedades respecto a permisos de acceso, supresión de dependencias, exposición de puertos o cambios en la base de datos:
@@ -86,20 +88,16 @@ El agente debe verificar localmente el impacto de sus cambios antes de reportar 
 # Frontend
 cd frontend && npm run lint && npm run build
 
-# Backend
-cd backend && npm run lint && npm run build
+# Backend (Compilación TypeScript estricta con NestJS)
+cd backend && npm run build
 ```
 
 ### 5.2 Pruebas Automatizadas
 ```bash
-# Pruebas unitarias en Backend (Jest)
-cd backend && npm test
-
-# Pruebas de integración API + BD (Supertest)
-cd backend && npm run test:integration
-
-# Pruebas unitarias de Workers Python
+# Pruebas unitarias de Workers Python (Verificación de parsing e integridad)
 python -m unittest discover -s workers/cosevi -p "test_*.py" -v
+
+# Nota: Los scripts npm para backend (backend:lint y backend:test) corresponden al Ítem 2.2 y se encuentran en proceso de integración.
 ```
 
 ### 5.3 Verificación SAST y Secretos
