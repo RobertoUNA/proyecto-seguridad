@@ -29,7 +29,7 @@ Creados **manualmente en el panel de Render**, sin conectar Render al repositori
 
 | Recurso | Tipo | Configuración |
 | :--- | :--- | :--- |
-| `proyecto-seguridad-db` | Render Postgres | PostgreSQL 16, PostGIS 3.6, base `proyecto_seguridad_gpja` (Render agregó el sufijo), usuario `proyecto_seguridad`, vence 2026-12-13. **Todo el tráfico de Internet bloqueado** ("All internet traffic is blocked by PostgreSQL inbound IP rules"): solo red privada. |
+| `proyecto-seguridad-db` | Render Postgres | PostgreSQL 16, PostGIS 3.6, base `proyecto_seguridad_gpja` (Render agregó el sufijo), usuario `proyecto_seguridad`, vence 2026-12-13. **Todo el tráfico de Internet bloqueado** ("All internet traffic is blocked by PostgreSQL inbound IP rules"): solo red privada. **Datos:** reales de OIJ, COSEVI, SNIT y OSM desde el 2026-11-13 (ver [Carga de datos reales](#carga-de-datos-reales-2026-11-13)); antes tenía la semilla ficticia. |
 | `proyecto-seguridad-backend` | Web service (imagen) | `https://proyecto-seguridad-backend-ajby.onrender.com`, health check `/api/health` |
 | `proyecto-seguridad-frontend` | Web service (imagen) | `https://proyecto-seguridad-frontend.onrender.com`, health check `/`, `PORT=8080`, `API_UPSTREAM=https://proyecto-seguridad-backend-ajby.onrender.com` |
 
@@ -86,7 +86,7 @@ El upstream es configurable sin reconstruir la imagen: `API_UPSTREAM` se renderi
      -f /sql/seed_test.sql
    Remove-Item Env:PGPASSWORD
    ```
-   `seed_test.sql` contiene datos **ficticios** (los mismos del CI): son los que permiten que respondan los smoke tests (`1001` → 200, `999999` → 404).
+   `seed_test.sql` contiene datos **ficticios** (los mismos del CI): son los que permiten que respondan los smoke tests (`1001` → 200, `999999` → 404). Para tener datos reales, se omite la semilla y se aplica el procedimiento de [Carga de datos reales](#carga-de-datos-reales-2026-11-13); así se hizo en el ambiente `Pruebas`.
 3. **Cerrar el acceso externo:** eliminar la regla `/32`. El panel debe mostrar "All internet traffic is blocked by PostgreSQL inbound IP rules".
 4. **Backend.** Crear un **New → Web Service → Existing image** con `docker.io/elrobb/proyecto-seguridad-backend@sha256:<digest del candidato>`, plan Free, región Ohio y health check `/api/health`. Variables:
    - `DB_HOST`: hostname **interno** de la BD;
@@ -99,7 +99,7 @@ El upstream es configurable sin reconstruir la imagen: `API_UPSTREAM` se renderi
 
 ### Verificación realizada
 
-El 2026-11-13, después de despertar el backend (la primera petición dio timeout y la segunda, 200):
+El 2026-11-13, con la **semilla ficticia** todavía cargada, y después de despertar el backend (la primera petición dio timeout y la segunda, 200). La verificación con datos reales está en [Carga de datos reales](#carga-de-datos-reales-2026-11-13).
 
 | Comprobación | Resultado |
 | :--- | :--- |
@@ -111,6 +111,70 @@ El 2026-11-13, después de despertar el backend (la primera petición dio timeou
 
 - **Revisión de los dos reportes:** Gitleaks v8.21.2 (`.gitleaks.toml`) dio `no leaks found`, y no contienen contraseñas, sales, tokens ni el host de la BD.
 - **Verificación TLS hacia el backend:** que `/api/health` responda 200 **a través del frontend** demuestra que nginx validó el certificado del backend, porque `proxy_ssl_verify on` rechaza certificados no confiables. Se probó localmente con un certificado autofirmado: `502` y `upstream SSL certificate verify error`.
+
+### Carga de datos reales (2026-11-13)
+
+La semilla ficticia (`seed_test.sql`: cantones `1001`/`2001`/`3001` con rectángulos de prueba, 2 delitos, 2 accidentes y 2 hospitales "(Test)") se **reemplazó por los datos reales** de las 4 fuentes OSINT, cargados con los workers del repositorio.
+
+**Procedimiento (plan B: carga local y luego transferencia única):** los workers insertan fila por fila, así que contra Render cada inserción sería un viaje de red a Ohio. Se cargó primero en local y se transfirió en un solo paso, con la ventana de acceso externo abierta solo unos minutos.
+
+1. **BD local temporal:**
+   - contenedor `ps-ingesta-db` (`postgis/postgis:16-3.4@sha256:44126d87…`), en una red Docker propia y sin puertos publicados;
+   - contraseña aleatoria generada en la sesión, sin escribirla en archivos;
+   - migraciones `001..004` **sin** la semilla.
+2. **Workers en un contenedor aislado:**
+   - imagen `python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b`, con `--cap-drop ALL` y `no-new-privileges`;
+   - solo `workers/` montado de solo lectura, así que `backend/.env` no era visible (lo que importa porque `cosevi` y `osm` lo leen si existe);
+   - `OSM_CONTACT_EMAIL` con el correo institucional del operador (política de uso de Overpass).
+
+   | Paso | Worker | Resultado | Duración |
+   | :-: | :--- | :--- | :-: |
+   | 1 | `snit/fetch_cantones.py` | 82 features de ArcGIS: 81 cantones y 1 feature vacío omitido | 3 s |
+   | 2 | `snit/backfill_cantones.py` | 5 cantones DTA 2022 sin geometría (`2012` ya existía en ArcGIS como "Valverde Vega" y quedó como "Sarchí") | 0 s |
+   | 3 | `oij/fetch_delitos.py --anio 2020 2021 2022 2023 2024 2025` | 258 150 registros → 188 582 agregados | 44 s |
+   | 4 | `cosevi/fetch_accidentes.py` | 93 699 registros (2020–2025) → 21 333 agregados. **Requirió un ajuste** (ver la nota) | 5 s |
+   | 5 | `osm/fetch_infraestructura.py` | 1 916 elementos de `overpass-api.de` | 47 s |
+
+3. **Validación local:**
+   - conteos y cantones `1001`/`2001`/`3001` con nombre, población y geometría reales;
+   - `999999` inexistente, geometrías válidas (`ST_IsValid`) y 0 registros de la semilla.
+4. **Volcado:** `pg_dump --data-only --no-owner --no-privileges` de `canton`, `delito`, `accidente` e `infraestructura`: `COPY` (primero `canton`) más `setval` de las secuencias. Tamaño: 24 033 231 bytes. **SHA-256 `a1a3d00dd962c8798a14ed064611f74d263e731b7e15ee73197d3f016f62da35`**. Se guardó fuera del repositorio y se eliminó después de la carga.
+5. **Ensayo:** sobre una base local que imitaba Render (migraciones y semilla):
+   - la carga completa en una sola transacción terminó con `exit 0` en 12 s;
+   - con un volcado corrupto, falló (`ON_ERROR_STOP`) y **revirtió todo**.
+6. **Carga en Render:** la ejecutó el operador desde su terminal.
+   - Abrió temporalmente su IP pública `/32` en *Inbound IP rules*.
+   - Pasó la contraseña con `Read-Host -AsSecureString` a `PGPASSWORD` (solo en la sesión) y usó `PGSSLMODE=require`.
+   - Usó el contenedor `postgis/postgis:16-3.4` fijado, con el volcado montado de solo lectura:
+     ```text
+     psql "host=<host externo> port=5432 dbname=proyecto_seguridad_gpja user=proyecto_seguridad" -1 -v ON_ERROR_STOP=1 -q \
+       -c "TRUNCATE TABLE public.infraestructura, public.accidente, public.delito, public.canton RESTART IDENTITY CASCADE;" \
+       -f /dump/datos-reales.sql
+     ```
+   - **Resultado:** `exit=0`, con la verificación posterior `85|188582|21333|1916|San José`.
+7. **Cierre:** se eliminó la regla `/32` (otra vez "All internet traffic is blocked by PostgreSQL inbound IP rules") y se borraron `PGPASSWORD` y `PGSSLMODE` de la sesión. Del lado local se eliminaron el contenedor, la red, el volumen, el volcado y los CSV.
+
+**Datos en Render tras la carga:**
+
+| Tabla | Filas | Sin cantón / sin geometría | Fuente y periodo |
+| :--- | ---: | :--- | :--- |
+| `canton` | 85 | 4 sin geometría | SNIT/ArcGIS (81) + SNIT/IGN DTA 2022 (5) |
+| `delito` | 188 582 | 589 sin `canton_id` | OIJ/CKAN, 2020-01-01 a 2025-12-31 (258 150 registros) |
+| `accidente` | 21 333 | 143 sin `canton_id` | COSEVI, 2020–2025 (93 699 registros) |
+| `infraestructura` | 1 916 | 2 sin `canton_id` | OSM/Overpass: 1 141 clínicas, 663 comisarías, 112 hospitales |
+
+**Verificación después de la carga (2026-11-13):**
+- [`reports/smoke-test-render-datos-reales-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json`](../../reports/smoke-test-render-datos-reales-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json): **APPROVED 8/8** vía el frontend. Gitleaks dio `no leaks found`.
+- `/api/cantones`: 85 features (4 sin geometría).
+- `/api/cantones/1001/panorama`: San José, `indice_cobertura = 89`; 48 900 delitos, 10 512 accidentes y 189 puntos de infraestructura (17 hospitales, 108 clínicas, 64 comisarías).
+- `/api/cantones/999999/panorama`: `404`.
+
+> **Nota — COSEVI.** El CSV oficial (`2 Base de accidentes con victimas 2020_ 2025_UTF8.csv`, SHA-256 `63cd529d8ec47c3cfc12e372fc70d28c7875fdfca90f3d7fca0ffc3cad291e81`) viene en **Windows-1252**, aunque el nombre diga UTF-8.
+> - El worker lo decodifica como `utf-8-sig` y falló con `'utf-8' codec can't decode byte 0xf1` (la "ñ" de "Año").
+> - Sin modificar el worker, el mismo archivo se convirtió a UTF-8 (SHA-256 `81594b19ef0c2e69394f267366fff16d9cc65ebeb2a57c20dfd9a2e5941905fc`). Se comprobó que la conversión es reversible byte a byte.
+> - Se sirvió en la red Docker aislada mediante `COSEVI_CSV_URL`, que el worker ya admite.
+> - Además, 263 registros con cantón "VALVERDE VEGA" no se vinculan, porque ese cantón ahora se llama "Sarchí" y el worker no tiene ese alias.
+> - Registrado como **`HAL-08`** en [`REGISTRO-HALLAZGOS.md`](./REGISTRO-HALLAZGOS.md).
 
 ### Endurecimiento conservado y perdido frente a docker-compose
 
@@ -174,7 +238,11 @@ El 2026-11-13, después de despertar el backend (la primera petición dio timeou
   - La primera petición tarda unos 50 s.
   - Si el frontend despierta antes que el backend, la primera llamada a `/api` puede devolver **504**, por los timeouts de nginx (5 s de conexión y 30 s de lectura).
   - Antes de una demostración, conviene despertar primero el backend.
-- **Vencimiento de la BD.** La base Free vence el **2026-12-13** (Render da 30 días desde la creación y un periodo de gracia antes de eliminarla). No tiene respaldos.
+- **Vencimiento de la BD.** La base Free vence el **2026-12-13** (Render da 30 días desde la creación y un periodo de gracia antes de eliminarla). No tiene respaldos: **los datos reales cargados se pierden con ella**. Para recrearlos hay que repetir el procedimiento de [Carga de datos reales](#carga-de-datos-reales-2026-11-13); el volcado no se conserva, porque se regenera con los workers.
+- **Cobertura de los datos reales:**
+  - **4 cantones sin geometría:** `2016` Río Cuarto, `6012` Quepos, `6013` Monteverde y `6014` Puerto Jiménez, creados después de 2015 y ausentes de la capa ArcGIS. No se dibujan en el mapa y no reciben infraestructura OSM, porque esta se asigna con `ST_Contains`.
+  - **Registros sin cantón vinculado:** 589 delitos (cantón "DESCONOCIDO" en el CSV del OIJ), 143 accidentes (incluido "VALVERDE VEGA", ver `HAL-08`) y 2 puntos de infraestructura fuera de las geometrías disponibles. Se conservan con `canton_id NULL` y no cuentan en el panorama de ningún cantón.
+  - **Instantánea del 2026-11-13:** no hay ingesta programada, así que los datos no se actualizan solos.
 - **PostGIS 3.6 en Render vs 3.4 en local/CI.** Las funciones usadas (`ST_GeomFromText`, `PostGIS_Version`, …) se comportan igual, y el smoke test pasó 8/8. Aun así, es una diferencia de versión entre ambientes.
 - **Sin `read_only` ni `cap_drop`** en Render (ver la tabla de endurecimiento).
 - **Despliegue manual.** El ítem `6.1` (despliegue automatizado) no fue seleccionado. Los servicios se crearon y actualizan a mano en el panel, siempre **por digest**, y `render.yaml` documenta el estado equivalente.

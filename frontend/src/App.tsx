@@ -71,6 +71,8 @@ export default function App() {
   const [detalle, setDetalle] = useState<DetalleFuente | null>(null)
   const [panorama, setPanorama] = useState<PanoramaResponse | null>(null)
   const [cargandoPanorama, setCargandoPanorama] = useState(false)
+  // HAL-09: distingue "panorama no solicitado" (null sin error) de "la petición falló".
+  const [errorPanorama, setErrorPanorama] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mostrarInfraestructura, setMostrarInfraestructura] = useState(false)
@@ -165,26 +167,6 @@ export default function App() {
     [actualizarCoropleta],
   )
 
-  const aplicarFiltros = useCallback(async () => {
-    setCargando(true)
-    setError(null)
-    try {
-      await actualizarCoropleta(fuente, filtros)
-      if (filtros.canton) {
-        const canton = (cantones?.features ?? []).find((feature) => feature.properties.codigo === filtros.canton)
-        if (canton) setSeleccion({ codigo: canton.properties.codigo, nombre: canton.properties.nombre })
-      } else {
-        setSeleccion(null)
-        setDetalle(null)
-        setPanorama(null)
-      }
-    } catch (causa) {
-      setError(causa instanceof Error ? causa.message : 'Error al aplicar filtros')
-    } finally {
-      setCargando(false)
-    }
-  }, [actualizarCoropleta, cantones, filtros, fuente])
-
   const seleccionarCanton = useCallback(
     async (codigo: string, nombre: string) => {
       setSeleccion({ codigo, nombre })
@@ -192,10 +174,12 @@ export default function App() {
       setError(null)
       setDetalle(null)
       setPanorama(null)
+      setErrorPanorama(false)
       setCargandoPanorama(true)
       const panoramaPromise = fetchPanorama(codigo)
         .catch((causa) => {
           console.error('No se pudo cargar el panorama del cantón', causa)
+          setErrorPanorama(true)
           return null
         })
         .finally(() => setCargandoPanorama(false))
@@ -228,6 +212,28 @@ export default function App() {
     },
     [filtros, fuente],
   )
+
+  const aplicarFiltros = useCallback(async () => {
+    setCargando(true)
+    setError(null)
+    try {
+      await actualizarCoropleta(fuente, filtros)
+      if (filtros.canton) {
+        const canton = (cantones?.features ?? []).find((feature) => feature.properties.codigo === filtros.canton)
+        // HAL-09: misma lógica que el clic en el mapa (limpia el panorama anterior y pide
+        // fetchPanorama + detalle filtrado); antes solo se cambiaba la selección.
+        if (canton) await seleccionarCanton(canton.properties.codigo, canton.properties.nombre)
+      } else {
+        setSeleccion(null)
+        setDetalle(null)
+        setPanorama(null)
+      }
+    } catch (causa) {
+      setError(causa instanceof Error ? causa.message : 'Error al aplicar filtros')
+    } finally {
+      setCargando(false)
+    }
+  }, [actualizarCoropleta, cantones, filtros, fuente, seleccionarCanton])
 
   const alternarInfraestructura = useCallback(async () => {
     const activar = !mostrarInfraestructura
@@ -329,6 +335,7 @@ export default function App() {
             error={error}
             panorama={panorama}
             cargandoPanorama={cargandoPanorama}
+            errorPanorama={errorPanorama}
             onCerrar={() => {
               setSeleccion(null)
               setDetalle(null)

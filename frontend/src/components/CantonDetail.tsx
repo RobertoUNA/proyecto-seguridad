@@ -9,6 +9,7 @@ interface Props {
   error: string | null
   panorama: PanoramaResponse | null
   cargandoPanorama: boolean
+  errorPanorama: boolean
   onCerrar: () => void
 }
 
@@ -29,6 +30,7 @@ export default function CantonDetail({
   error,
   panorama,
   cargandoPanorama,
+  errorPanorama,
   onCerrar,
 }: Props) {
   const tipos = datos ? agruparPorTipo(datos) : []
@@ -84,7 +86,8 @@ export default function CantonDetail({
 
       <h3>Panorama del cantón (cruce de 4 fuentes)</h3>
       {cargandoPanorama && <p className="nota">Cargando panorama…</p>}
-      {!cargandoPanorama && !panorama && (
+      {/* HAL-09: el mensaje de error solo aparece si la petición del panorama falló. */}
+      {!cargandoPanorama && !panorama && errorPanorama && (
         <p className="nota">No se pudo cargar el panorama de este cantón.</p>
       )}
       {!cargandoPanorama && panorama && (
