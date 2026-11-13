@@ -1,0 +1,80 @@
+# =============================================================================
+# Render Blueprint — despliegue del Observatorio (Ítems 6.2 y 6.4)
+# Responsable: Brandon Corrales · Ver docs/ssdcl/06-despliegue-render.md
+#
+# CONFIGURACIÓN DECLARATIVA EQUIVALENTE, APLICADA MANUALMENTE.
+# Los recursos de Render se crearon a mano en el panel (proyecto "proyecto-seguridad", ambiente
+# "Pruebas"), SIN conectar Render a este repositorio. Por eso Render no lee este archivo. Se versiona
+# como descripción reproducible y revisable de lo desplegado. Si se aplicara como Blueprint, crearía
+# los mismos recursos.
+#
+# - Imágenes por DIGEST: candidato 6342cd32e5cb675ca7e26448e93cb1ae795d0d16
+#   (reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json). No se reconstruyen.
+# - Sin valores secretos:
+#   · DB_PASSWORD, DB_USER y DB_NAME salen de la base (fromDatabase).
+#   · LOG_ACTOR_SALT se genera en Render (generateValue).
+#   · DB_HOST se pide al crear (sync: false): fromDatabase no expone host/port para Postgres.
+# - Rollback (5.4): cambiar ambos digests a los de 384d680828efecfbefbada3ca3bbd2e61f36cc48.
+# =============================================================================
+projects:
+  - name: proyecto-seguridad
+    environments:
+      - name: Pruebas
+        databases:
+          - name: proyecto-seguridad-db
+            plan: free
+            region: ohio
+            postgresMajorVersion: "16"
+            databaseName: proyecto_seguridad   # Render puede agregar un sufijo (el real es proyecto_seguridad_gpja)
+            user: proyecto_seguridad
+            # Lista vacía = se bloquea toda conexión desde Internet; solo red privada.
+            # Para cargar el esquema se abre temporalmente la IP /32 del operador y luego se cierra.
+            ipAllowList: []
+
+        services:
+          - type: web
+            name: proyecto-seguridad-backend
+            runtime: image
+            plan: free
+            region: ohio
+            image:
+              url: docker.io/elrobb/proyecto-seguridad-backend@sha256:b1763f4dde20eb348f948061d9e7421e8ba9e74044c59519a8028567e8ee4d34
+            healthCheckPath: /api/health
+            envVars:
+              - key: DB_HOST            # hostname INTERNO de la base (panel de la BD > Connections)
+                sync: false
+              - key: DB_PORT
+                value: "5432"
+              - key: DB_USER
+                fromDatabase:
+                  name: proyecto-seguridad-db
+                  property: user
+              - key: DB_NAME
+                fromDatabase:
+                  name: proyecto-seguridad-db
+                  property: database
+              - key: DB_PASSWORD        # secreto (6.4): nunca se escribe en el repositorio
+                fromDatabase:
+                  name: proyecto-seguridad-db
+                  property: password
+              - key: LOG_ACTOR_SALT     # secreto (6.4, 7.2): valor aleatorio de 256 bits generado por Render
+                generateValue: true
+              # LOG_TRUSTED_PROXY no se define a propósito: detrás del proxy de Render no se confía en
+              # X-Forwarded-For (ver limitaciones en docs/ssdcl/06-despliegue-render.md).
+              # PORT lo inyecta Render y el backend lo respeta (main.ts).
+
+          - type: web
+            name: proyecto-seguridad-frontend
+            runtime: image
+            plan: free
+            region: ohio
+            image:
+              url: docker.io/elrobb/proyecto-seguridad-frontend@sha256:ef7f7909e82318488a4454b6eabd80dabaa7cba64fd102c04e6e9e41487ff851
+            healthCheckPath: /
+            envVars:
+              # URL PÚBLICA HTTPS del backend: los web services Free no pueden RECIBIR tráfico por la red
+              # privada. nginx verifica el certificado (proxy_ssl_verify) y envía SNI.
+              - key: API_UPSTREAM
+                value: https://proyecto-seguridad-backend-ajby.onrender.com
+              - key: PORT               # nginx escucha en 8080 (usuario 101, sin privilegios)
+                value: "8080"
