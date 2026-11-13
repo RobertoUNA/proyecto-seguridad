@@ -10,12 +10,17 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$GitCommitSha = (git rev-parse --short HEAD 2>$null)
+if ([string]::IsNullOrWhiteSpace($GitCommitSha)) { $GitCommitSha = $null }
 if ([string]::IsNullOrWhiteSpace($ReportPath)) {
-    $ShortSha = (git rev-parse --short HEAD 2>$null)
-    if ([string]::IsNullOrWhiteSpace($ShortSha)) { $ShortSha = "local" }
+    $ShortSha = if ($GitCommitSha) { $GitCommitSha } else { "local" }
     $Stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
     $ReportPath = "reports/smoke-test-$ShortSha-$Stamp.json"
 }
+$TargetCommitSha = if (-not [string]::IsNullOrWhiteSpace($env:COMMIT_SHA)) { $env:COMMIT_SHA } elseif ($GitCommitSha) { $GitCommitSha } else { "local" }
+$DeployedImageDigest = if (-not [string]::IsNullOrWhiteSpace($env:DEPLOYED_IMAGE_DIGEST)) { $env:DEPLOYED_IMAGE_DIGEST } else { "no-aplica (ejecucion desde codigo fuente sin imagen por digest)" }
+$HealthCommitSha = $null
+$HealthVersion = $null
 $Results = @()
 $Failed = 0
 
@@ -44,9 +49,11 @@ Write-Host "==================================================================" 
 try {
     $resp = Invoke-WebRequest -Uri "$BaseUrl/api/health" -Method GET -UseBasicParsing -TimeoutSec 10
     $body = $resp.Content | ConvertFrom-Json
+    if ($body.commit_sha) { $HealthCommitSha = [string]$body.commit_sha }
+    if ($body.version) { $HealthVersion = [string]$body.version }
     $hasHeaders = ($null -ne $resp.Headers["X-Data-Source"]) -and ($null -ne $resp.Headers["X-Fetch-Date"])
     $ok = ($resp.StatusCode -eq 200) -and ($body.status -eq "ok") -and ($body.database.status -eq "up") -and $hasHeaders
-    Add-CheckResult -Name "1. Health Check (/api/health)" -Passed $ok -StatusCode $resp.StatusCode -Detail "DB=$($body.database.status), PostGIS=$($body.database.postgis_version)"
+    Add-CheckResult -Name "1. Health Check (/api/health)" -Passed $ok -StatusCode $resp.StatusCode -Detail "DB=$($body.database.status), PostGIS=$($body.database.postgis_version), commit=$HealthCommitSha"
 } catch {
     Add-CheckResult -Name "1. Health Check (/api/health)" -Passed $false -StatusCode 0 -Detail $_.Exception.Message
 }
@@ -130,14 +137,19 @@ if ($ReportDir -and -not (Test-Path $ReportDir)) {
     New-Item -ItemType Directory -Force -Path $ReportDir | Out-Null
 }
 
+$VerifiedCommitSha = if ($HealthCommitSha) { $HealthCommitSha } else { $TargetCommitSha }
 $Summary = [PSCustomObject]@{
-    base_url     = $BaseUrl
-    executed_at  = (Get-Date).ToUniversalTime().ToString("o")
-    total_checks = $Results.Count
-    passed       = ($Results | Where-Object { $_.passed }).Count
-    failed       = $Failed
-    status       = $(if ($Failed -eq 0) { "APPROVED" } else { "FAILED" })
-    checks       = $Results
+    base_url          = $BaseUrl
+    executed_at       = (Get-Date).ToUniversalTime().ToString("o")
+    commit_sha        = $VerifiedCommitSha
+    health_commit_sha = $HealthCommitSha
+    app_version       = $HealthVersion
+    image_digest      = $DeployedImageDigest
+    total_checks      = $Results.Count
+    passed            = ($Results | Where-Object { $_.passed }).Count
+    failed            = $Failed
+    status            = $(if ($Failed -eq 0) { "APPROVED" } else { "FAILED" })
+    checks            = $Results
 }
 $Summary | ConvertTo-Json -Depth 5 | Set-Content -Path $ReportPath -Encoding UTF8
 
