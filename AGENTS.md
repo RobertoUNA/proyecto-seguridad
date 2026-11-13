@@ -1,0 +1,146 @@
+# AGENTS.md — Directivas de Gobernanza y Seguridad para Agentes de IA
+
+> **Proyecto:** Observatorio de Seguridad Vial y Urbana de Costa Rica (`proyecto-seguridad`)  
+> **Versión:** `1.0.0` · **Última actualización:** `2026-11-13`  
+> **Responsable del Documento:** Jose Picado (`Jose-Picado-Zamora`) — *Responsable de Requisitos y Base de Conocimiento (KB)*  
+> **Cumplimiento SSDLC:** Ítems `1.8` y `2.1` (NIST NCCoE — Etapa 1 Planificación y Etapa 2 Desarrollo)  
+> **Revisor Asignado:** Brandon Corrales (`Brandon-Corrales`)
+
+---
+
+## 1. Propósito y Ámbito de Aplicación
+
+Este documento establece las instrucciones operativas, restricciones de seguridad, convenciones de arquitectura y comandos reproducibles obligatorios que **todo agente de Inteligencia Artificial** (Claude Code, Antigravity, GitHub Copilot, Gemini CLI o similares) debe consultar y acatar rigurosamente antes de proponer, modificar o verificar código en este repositorio.
+
+El agente opera bajo el principio de **Mínimo Privilegio** y **Supervisión Humana Obligatoria (Human-in-the-Loop)**. Ningún cambio generado por IA puede integrarse a ramas productivas sin validación automatizada y revisión por pares de un integrante humano del equipo.
+
+---
+
+## 2. Consulta Obligatoria de la Base de Conocimiento (KB)
+
+Antes de realizar modificaciones sobre endpoints, lógica de negocio o esquemas de base de datos, el agente **DEBE consultar** la Base de Conocimiento central en:
+👉 [`docs/ssdcl/01-planificacion-kb.md`](./docs/ssdcl/01-planificacion-kb.md)
+
+### 2.1 Flujos Críticos Identificados
+
+| ID Flujo | Nombre del Flujo | Endpoint / Ruta | Justificación e Impacto de Fallo |
+| :--- | :--- | :--- | :--- |
+| **`FLOW-01`** | **Cruce Geoespacial y Panorama Cantonal** | `GET /api/cantones/:id/panorama` | Cálculo del percentil `indice_cobertura` (`0..100`) y ratio cantonal. Un fallo distorsiona la toma de decisiones territoriales de emergencia. |
+| **`FLOW-02`** | **Consulta Multicapa Dinámica** | `GET /api/delitos`<br/>`GET /api/accidentes`<br/>`GET /api/infraestructura` | Filtros dinámicos (`canton`, `tipo`, `desde`, `hasta`, `anio`). Requiere cotas estrictas (`LIMIT 1000`/`5000`) para evitar DoS. |
+| **`FLOW-03`** | **Ingesta y Normalización OSINT** | `workers/{oij,cosevi,snit,osm}/*.py` | Cruza la frontera de confianza hacia APIs públicas y escribe en PostGIS. Requiere transacciones atómicas y timeouts. |
+
+### 2.2 Amenazas STRIDE y Controles Vinculados
+
+El agente debe verificar que todo código preserve los siguientes controles preventivos:
+
+| Amenaza | Tipo STRIDE | Control Asociado | Regla Obligatoria en Código |
+| :---: | :--- | :---: | :--- |
+| **`THR-01`** | Tampering / Information Disclosure | **`CTL-01`** | Prohibido interpolar strings en consultas SQL (`${...}`). Obligatorio usar parámetros enlazados en TypeORM / QueryBuilder. Detección por Semgrep `ssdcl-ts-raw-sql-interpolation`. |
+| **`THR-02`** | Denial of Service (DoS) | **`CTL-02`** | Consultas en backend con cotas explícitas (`take(1000)` / `limit(5000)`). En Python, llamadas `requests` con `timeout=15` obligatorio. |
+| **`THR-03`** | Information Disclosure | **`CTL-03`** | Secretos únicamente inyectados por variables de entorno (`process.env`). Prohibido hardcodear contraseñas o tokens. Escaneo con Gitleaks y Semgrep. |
+| **`THR-04`** | Tampering (Corrupción OSINT) | **`CTL-04`** | Workers Python deben validar columnas mínimas requeridas, tipos y rango de años (`1900..2100`). Prohibido `verify=False` en peticiones HTTPS. |
+| **`THR-05`** | Elevation of Privilege | **`CTL-05`** | Dockerfiles deben declarar usuario no root: `USER node` (backend, UID 1000) y `USER 101` (frontend, nginx). Reglas Conftest (`policy/container.rego`) prohíben `privileged: true` y exigen `USER` no root. |
+| **`THR-06`** | Repudiation / Falta Trazabilidad | **`CTL-06`** | Logs de eventos de seguridad con `correlationId` (UUID v4). Anonimización de IP con sal persistente (`actor_id`). Prohibido registrar contraseñas o stack traces en 500. |
+
+---
+
+## 3. Límites Estrictos del Agente (Archivos y Acciones Restringidas)
+
+### ⛔ 3.1 Prohibiciones Absolutas (No Modificar sin Aprobación Humana Explícita)
+El agente **TIENE PROHIBIDO** crear, editar o eliminar los siguientes componentes bajo ninguna circunstancia sin autorización explícita:
+
+1. **Workflows de CI/CD:** `.github/workflows/*.yml` (incluyendo `ci.yml`, `container-supply-chain.yml`, `release-deploy.yml`).
+2. **Reglas y Políticas de Seguridad:** `.semgrep.yml`, `.gitleaks.toml`, `policy/*.rego`, `policy/container_test.rego`, `osv-scanner.toml`. El agente **no puede relajar ni suprimir reglas de seguridad** para forzar que un análisis pase.
+3. **Archivos de Secretos y Configuración Local:** `.env`, `.env.local`, `.docker/config.json`.
+4. **Scripts de Verificación, Escaneo y Rollback:** `scripts/agent-verify.ps1`, `scripts/agent-verify.sh`, `scripts/container-scan.*`, `scripts/policy-check.*`, `scripts/rollback.*`.
+5. **Configuración del Hook y Contador de Reintentos:** `.claude/settings.json`, `.claude/verify-attempts` (mecanismo de supervisión que evita bucles y reinicios no autorizados).
+6. **Configuración de Contenedores y Despliegue:** `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf*` (incluye `frontend/nginx.conf.template`: proxy de `/api`, sobrescritura de `X-Forwarded-For` y verificación TLS del upstream), `policy/examples/**`, `deploy/**`.
+7. **Registro de Hallazgos y Excepciones:** `docs/ssdcl/REGISTRO-HALLAZGOS.md`, `.trivyignore.yaml` (las supresiones de CVEs requieren aprobación humana formal en el registro único).
+
+### ⚠️ 3.2 Protocolo ante Dudas de Permisos o Alcance
+Si una tarea técnica presenta ambigüedades respecto a permisos de acceso, supresión de dependencias, exposición de puertos o cambios en la base de datos:
+1. **Detenerse de inmediato.**
+2. **No asumir ni improvisar configuraciones permisivas.**
+3. **Señalar explícitamente la duda al desarrollador humano**, indicando el riesgo de seguridad potencial y la opción más segura recomendada.
+
+---
+
+## 4. Convenciones de Arquitectura y Código
+
+Todo código propuesto debe apegarse a:
+
+1. **TypeScript Estricto:** Prohibido el uso de `any` injustificado. Tipado estricto en interfaces de NestJS y componentes de React.
+2. **Arquitectura Desacoplada:** El Frontend React tiene **estrictamente prohibido** invocar directamente APIs externas de fuentes OSINT (OIJ, COSEVI, etc.). Todo consumo debe realizarse a través del API Gateway del backend (`/api/*`).
+3. **Atribución y Trazabilidad:** Todo registro persistido o devuelto en los endpoints debe preservar los metadatos de procedencia:
+   - `fuente`: Nombre de la fuente oficial (`SNIT/ArcGIS`, `OIJ/CKAN`, `COSEVI`, `OSM/Overpass`).
+   - `fecha_obtencion`: Timestamp ISO 8601 de la extracción de los datos.
+   - Cabeceras HTTP: `X-Data-Source` y `X-Fetch-Date`.
+4. **Sanitización de Respuestas:** Los errores de servidor (`500 Internal Server Error`) nunca deben propagar trazas de pila (*stack traces*), rutas de archivos del host ni fragmentos de consultas SQL al cliente.
+
+---
+
+## 5. Comandos Reproducibles de Calidad, Compilación y Seguridad
+
+El agente debe verificar localmente el impacto de sus cambios utilizando **únicamente comandos reales existentes** en el repositorio:
+
+### 5.1 Compilación y Linter
+```bash
+# Frontend (Linter oxlint y compilación estricta TypeScript con Vite)
+cd frontend && npm run lint && npm run build
+
+# Backend (ESLint y compilación TypeScript estricta con NestJS)
+cd backend && npm run lint && npm run build
+```
+
+### 5.2 Pruebas Automatizadas
+```bash
+# Pruebas unitarias del Backend (Jest; p. ej. src/modules/cruce/cruce.service.spec.ts)
+cd backend && npm test
+
+# Pruebas de integración API + BD (Jest + Supertest; backend/test/api.integration.spec.ts)
+# Requiere PostgreSQL/PostGIS con las migraciones 001..004 y backend/database/seed_test.sql cargadas,
+# y las variables DB_* del entorno (igual que el job 3.1 de .github/workflows/ci.yml).
+cd backend && npm run test:integration
+
+# Pruebas unitarias de Workers Python (Verificación de parsing e integridad COSEVI)
+python -m unittest discover -s workers/cosevi -p "test_*.py" -v
+```
+> Scripts verificados en `backend/package.json`: `lint` (`eslint "src/**/*.ts"`), `build` (`nest build`), `test` (`jest`) y `test:integration` (`jest --config test/jest-integration.json --runInBand`).
+
+### 5.3 Verificación SAST y Secretos
+```bash
+# Análisis estático SAST local (Semgrep CE con reglas del proyecto)
+python scripts/sast-check.py
+
+# Detección de fugas de secretos (Gitleaks con redacción de datos)
+gitleaks dir . --config .gitleaks.toml --redact
+```
+
+---
+
+## 6. Integración con el Hook Guardián (`agent-verify`, Ítem 2.4)
+
+El repositorio cuenta con el hook **Stop** de Claude Code configurado formalmente en [`.claude/settings.json`](./.claude/settings.json) y respaldado por los scripts oficiales desarrollados por Brandon Corrales ([`scripts/agent-verify.ps1`](./scripts/agent-verify.ps1) y [`scripts/agent-verify.sh`](./scripts/agent-verify.sh)).
+
+### 6.1 Comportamiento en Modo Hook Automático
+Al utilizar asistentes con soporte para hooks de parada (ej. Claude Code):
+- Se ejecuta automáticamente al finalizar cada respuesta del agente (`"Stop"` hook).
+- Detecta qué plataforma se utiliza:
+  - En Windows ejecuta: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/agent-verify.ps1 -Hook`
+  - En Linux/macOS ejecuta: `bash scripts/agent-verify.sh --hook`
+- Si detecta un fallo, el agente recibe el extracto del error con código `exit 2` para corregirlo en su siguiente turno.
+- **Límite de 3 intentos:** Si el agente acumula 3 fallos consecutivos, el script se bloquea automáticamente: guarda `reports/agent-verify-blocked-<ts>.json`, escribe el mensaje `BLOQUEO: requiere intervención humana…` en stderr y emite por **stdout** el JSON `{"systemMessage": "..."}`, que es lo que Claude Code muestra al usuario, y termina con `exit 0` para no entrar en un bucle ([`scripts/agent-verify.ps1:351-355`](./scripts/agent-verify.ps1)). Requiere intervención humana.
+
+### 6.2 Ejecución Manual
+Para ejecutar la suite completa de verificaciones del agente manualmente:
+
+**En Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/agent-verify.ps1
+```
+
+**En Linux / macOS (Bash):**
+```bash
+bash scripts/agent-verify.sh
+```
+*(Para incluir escaneo pesado de Trivy/SBOM agregar el parámetro `-Full` o `--full`).*
