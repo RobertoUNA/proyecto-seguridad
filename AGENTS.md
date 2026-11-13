@@ -1,7 +1,7 @@
 # AGENTS.md — Directivas de Gobernanza y Seguridad para Agentes de IA
 
 > **Proyecto:** Observatorio de Seguridad Vial y Urbana de Costa Rica (`proyecto-seguridad`)  
-> **Versión:** `1.0.0` · **Última actualización:** `2026-11-12`  
+> **Versión:** `1.0.0` · **Última actualización:** `2026-11-13`  
 > **Responsable del Documento:** Jose Picado (`Jose-Picado-Zamora`) — *Responsable de Requisitos y Base de Conocimiento (KB)*  
 > **Cumplimiento SSDLC:** Ítems `1.8` y `2.1` (NIST NCCoE — Etapa 1 Planificación y Etapa 2 Desarrollo)  
 > **Revisor Asignado:** Brandon Corrales (`Brandon-Corrales`)
@@ -39,7 +39,7 @@ El agente debe verificar que todo código preserve los siguientes controles prev
 | **`THR-02`** | Denial of Service (DoS) | **`CTL-02`** | Consultas en backend con cotas explícitas (`take(1000)` / `limit(5000)`). En Python, llamadas `requests` con `timeout=15` obligatorio. |
 | **`THR-03`** | Information Disclosure | **`CTL-03`** | Secretos únicamente inyectados por variables de entorno (`process.env`). Prohibido hardcodear contraseñas o tokens. Escaneo con Gitleaks y Semgrep. |
 | **`THR-04`** | Tampering (Corrupción OSINT) | **`CTL-04`** | Workers Python deben validar columnas mínimas requeridas, tipos y rango de años (`1900..2100`). Prohibido `verify=False` en peticiones HTTPS. |
-| **`THR-05`** | Elevation of Privilege | **`CTL-05`** | Dockerfiles deben declarar usuario no root (`USER nodejs` / `USER nginx`). Contenedores sin modo privilegiado (`no-new-privileges`). |
+| **`THR-05`** | Elevation of Privilege | **`CTL-05`** | Dockerfiles deben declarar usuario no root: `USER node` (backend, UID 1000) y `USER 101` (frontend, nginx). Reglas Conftest (`policy/container.rego`) prohíben `privileged: true` y exigen `USER` no root. |
 | **`THR-06`** | Repudiation / Falta Trazabilidad | **`CTL-06`** | Logs de eventos de seguridad con `correlationId` (UUID v4). Anonimización de IP con sal persistente (`actor_id`). Prohibido registrar contraseñas o stack traces en 500. |
 
 ---
@@ -50,12 +50,12 @@ El agente debe verificar que todo código preserve los siguientes controles prev
 El agente **TIENE PROHIBIDO** crear, editar o eliminar los siguientes componentes bajo ninguna circunstancia sin autorización explícita:
 
 1. **Workflows de CI/CD:** `.github/workflows/*.yml` (incluyendo `ci.yml`, `container-supply-chain.yml`, `release-deploy.yml`).
-2. **Reglas y Políticas de Seguridad:** `.semgrep.yml`, `.gitleaks.toml`, `policy/*.rego`, `osv-scanner.toml`. El agente **no puede relajar ni suprimir reglas de seguridad** para forzar que un análisis pase.
+2. **Reglas y Políticas de Seguridad:** `.semgrep.yml`, `.gitleaks.toml`, `policy/*.rego`, `policy/container_test.rego`, `osv-scanner.toml`. El agente **no puede relajar ni suprimir reglas de seguridad** para forzar que un análisis pase.
 3. **Archivos de Secretos y Configuración Local:** `.env`, `.env.local`, `.docker/config.json`.
-4. **Scripts de Verificación y Rollback:** `scripts/agent-verify.ps1`, `scripts/agent-verify.sh`, `scripts/rollback.*`.
-5. **Registro de Hallazgos y Excepciones:** `docs/ssdcl/REGISTRO-HALLAZGOS.md` (las excepciones de seguridad solo pueden ser aprobadas por integrantes humanos).
-6. **Configuración del Hook y Contador:** `.claude/settings.json`, `.claude/verify-attempts` (mecanismo de supervisión y límite de intentos).
-7. **Excepciones de Contenedores:** `.trivyignore.yaml` (las supresiones temporales de CVEs requieren aprobación humana formal en el registro único).
+4. **Scripts de Verificación, Escaneo y Rollback:** `scripts/agent-verify.ps1`, `scripts/agent-verify.sh`, `scripts/container-scan.*`, `scripts/policy-check.*`, `scripts/rollback.*`.
+5. **Configuración del Hook y Contador de Reintentos:** `.claude/settings.json`, `.claude/verify-attempts` (mecanismo de supervisión que evita bucles y reinicios no autorizados).
+6. **Configuración de Contenedores y Despliegue:** `docker-compose.yml`, `policy/examples/**`, `deploy/**`.
+7. **Registro de Hallazgos y Excepciones:** `docs/ssdcl/REGISTRO-HALLAZGOS.md`, `.trivyignore.yaml` (las supresiones de CVEs requieren aprobación humana formal en el registro único).
 
 ### ⚠️ 3.2 Protocolo ante Dudas de Permisos o Alcance
 Si una tarea técnica presenta ambigüedades respecto a permisos de acceso, supresión de dependencias, exposición de puertos o cambios en la base de datos:
@@ -81,28 +81,27 @@ Todo código propuesto debe apegarse a:
 
 ## 5. Comandos Reproducibles de Calidad, Compilación y Seguridad
 
-El agente debe verificar localmente el impacto de sus cambios antes de reportar una tarea como lista:
+El agente debe verificar localmente el impacto de sus cambios utilizando **únicamente comandos reales existentes** en el repositorio:
 
 ### 5.1 Compilación y Linter
 ```bash
-# Frontend
+# Frontend (Linter oxlint y compilación estricta TypeScript con Vite)
 cd frontend && npm run lint && npm run build
 
 # Backend (Compilación TypeScript estricta con NestJS)
 cd backend && npm run build
 ```
+> *Nota sobre Backend:* El archivo `backend/package.json` dispone actualmente del script `build`. Los scripts `backend:lint` y `backend:test` corresponden al Ítem 2.2 y se encuentran en proceso de integración.
 
 ### 5.2 Pruebas Automatizadas
 ```bash
-# Pruebas unitarias de Workers Python (Verificación de parsing e integridad)
+# Pruebas unitarias de Workers Python (Verificación de parsing e integridad COSEVI)
 python -m unittest discover -s workers/cosevi -p "test_*.py" -v
-
-# Nota: Los scripts npm para backend (backend:lint y backend:test) corresponden al Ítem 2.2 y se encuentran en proceso de integración.
 ```
 
 ### 5.3 Verificación SAST y Secretos
 ```bash
-# Análisis estático SAST local (Semgrep)
+# Análisis estático SAST local (Semgrep CE con reglas del proyecto)
 python scripts/sast-check.py
 
 # Detección de fugas de secretos (Gitleaks con redacción de datos)
@@ -113,16 +112,27 @@ gitleaks dir . --config .gitleaks.toml --redact
 
 ## 6. Integración con el Hook Guardián (`agent-verify`, Ítem 2.4)
 
-Este repositorio cuenta con el script wrapper oficial de verificación desarrollado por Brandon Corrales (`scripts/agent-verify.ps1` en Windows y `scripts/agent-verify.sh` en Linux/macOS).
+El repositorio cuenta con el hook **Stop** de Claude Code configurado formalmente en [`.claude/settings.json`](./.claude/settings.json) y respaldado por los scripts oficiales desarrollados por Brandon Corrales ([`scripts/agent-verify.ps1`](./scripts/agent-verify.ps1) y [`scripts/agent-verify.sh`](./scripts/agent-verify.sh)).
 
-### 6.1 Ejecución Manual
-Para ejecutar la suite completa de verificaciones del agente:
+### 6.1 Comportamiento en Modo Hook Automático
+Al utilizar asistentes con soporte para hooks de parada (ej. Claude Code):
+- Se ejecuta automáticamente al finalizar cada respuesta del agente (`"Stop"` hook).
+- Detecta qué plataforma se utiliza:
+  - En Windows ejecuta: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/agent-verify.ps1 -Hook`
+  - En Linux/macOS ejecuta: `bash scripts/agent-verify.sh --hook`
+- Si detecta un fallo, el agente recibe el extracto del error con código `exit 2` para corregirlo en su siguiente turno.
+- **Límite de 3 intentos:** Si el agente acumula 3 fallos consecutivos, el script se bloquea automáticamente (`reports/agent-verify-blocked-*.json`), emite `exit 0` con mensaje structured en stderr y solicita intervención humana para evitar bucles destructivos.
+
+### 6.2 Ejecución Manual
+Para ejecutar la suite completa de verificaciones del agente manualmente:
+
+**En Windows (PowerShell):**
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/agent-verify.ps1
 ```
 
-### 6.2 Comportamiento en Modo Hook Automático
-Cuando se utiliza con asistentes que soportan hooks de parada (ej. Claude Code con `.claude/settings.json`):
-- Se ejecuta automáticamente al finalizar cada respuesta.
-- Si detecta un fallo, el agente recibe el extracto del error con código `exit 2` para corregirlo.
-- **Límite de 3 intentos:** Si el agente acumula 3 fallos consecutivos, el script se bloquea automáticamente (`reports/agent-verify-blocked-*.json`), emite `exit 0` y solicita intervención humana para evitar bucles destructivos.
+**En Linux / macOS (Bash):**
+```bash
+bash scripts/agent-verify.sh
+```
+*(Para incluir escaneo pesado de Trivy/SBOM agregar el parámetro `-Full` o `--full`).*
