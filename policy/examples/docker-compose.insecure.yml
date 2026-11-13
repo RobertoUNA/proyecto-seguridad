@@ -1,0 +1,14 @@
+# =============================================================================
+# EJEMPLO INSEGURO — solo para demostrar el rechazo de policy/container.rego (Ítem 3.4).
+# NO se usa para levantar servicios. Viola:
+#   · Política 1: `privileged: true` en backend (THR-05).
+#   · Política 2: `user: "0"` en db anula el usuario no root de la imagen.
+# =============================================================================
+name: ejemplo-inseguro
+services:
+  backend:
+    image: proyecto-seguridad-backend:local
+    privileged: true
+  db:
+    image: postgis/postgis:16-3.4
+    user: "0"

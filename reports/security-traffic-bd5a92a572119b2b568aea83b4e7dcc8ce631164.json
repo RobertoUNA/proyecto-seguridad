@@ -1,0 +1,54 @@
+{
+    "item":  "7.2",
+    "commit":  "bd5a92a572119b2b568aea83b4e7dcc8ce631164",
+    "generated_at":  "2026-11-12T02:35:09Z",
+    "target":  "solo localhost",
+    "requests":  [
+                     {
+                         "id":  "normal",
+                         "note":  "petición normal (200, no genera evento)",
+                         "status":  200,
+                         "correlation_id":  "648557cd-3b29-477e-bbd8-48eda55dfef8"
+                     },
+                     {
+                         "id":  "fecha-invalida",
+                         "note":  "fecha inválida + Authorization y Cookie ficticias",
+                         "status":  400,
+                         "correlation_id":  "26810451-6897-463f-985b-26a0742106a0"
+                     },
+                     {
+                         "id":  "canton-inexistente",
+                         "note":  "cantón inexistente + X-Correlation-Id UUID válido (debe conservarse)",
+                         "status":  404,
+                         "correlation_id":  "11836715-285e-47b5-902c-7d17301388f6"
+                     },
+                     {
+                         "id":  "ruta-inexistente",
+                         "note":  "ruta inexistente + X-Correlation-Id inválido (debe reemplazarse)",
+                         "status":  404,
+                         "correlation_id":  "dd262517-4f45-4153-9271-c6686800c418"
+                     },
+                     {
+                         "id":  "inyeccion-sql",
+                         "note":  "intento ?canton=\u0027 OR 1=1-- + Authorization, Cookie y X-Forwarded-For ficticios",
+                         "status":  400,
+                         "correlation_id":  "c8eb15c8-cdb2-463f-9dba-467dfaadd0eb"
+                     },
+                     {
+                         "id":  "escritura",
+                         "note":  "POST a la API de solo lectura (acceso denegado)",
+                         "status":  404,
+                         "correlation_id":  "7d6624ad-bf00-4639-a39b-36350e567e57"
+                     },
+                     {
+                         "id":  "via-frontend",
+                         "note":  "mismo 404 pasando por nginx (X-Forwarded-For lo pone nginx)",
+                         "status":  404,
+                         "correlation_id":  "7f7053bb-6204-4ea2-b2ff-bbae9810da37"
+                     }
+                 ],
+    "sensitive_inputs_sent":  "Authorization y Cookie ficticias, X-Forwarded-For de TEST-NET-3 e inyección SQL (valores no se guardan aquí)",
+    "client_ips_checked":  5,
+    "sample":  "reports/security-events-sample-bd5a92a572119b2b568aea83b4e7dcc8ce631164.jsonl",
+    "events_captured":  6
+}

@@ -42,3 +42,4 @@ __pycache__/
 
 # Cobertura de pruebas (Jest)
 coverage/
+.claude/verify-attempts
