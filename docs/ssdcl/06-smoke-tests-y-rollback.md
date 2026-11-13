@@ -44,7 +44,7 @@ Cada reporte JSON generado registra la versión verificada mediante `commit_sha`
 El archivo versionado [`deploy/last-approved-release.json`](../../deploy/last-approved-release.json) conserva la identidad de la versión de recuperación base:
 - `release_id`: `v1.0.0-rc0-baseline`
 - `commit_sha`: `4844d2a`
-- `backend_image` y `frontend_image`: actualmente contienen digests de referencia iniciales (`sha256:9e06aae000...0001` y `...0002`), pendientes de sustituirse por los digests reales publicados en `docker.io/elrobb/proyecto-seguridad-{backend,frontend}` cuando el workflow del ítem `5.5` (PR #6) publique desde `main`.
+- `backend_image` y `frontend_image`: actualmente contienen digests de referencia iniciales (`sha256:9e06aae000...0001` y `...0002`), pendientes de sustituirse por los digests reales publicados en `docker.io/elrobb/proyecto-seguridad-{backend,frontend}` cuando el workflow del ítem `5.5` ([`.github/workflows/release-deploy.yml`](../../.github/workflows/release-deploy.yml), ya integrado en `development`) publique desde `main`.
 - **Tratamiento de Base de Datos en Rollback:** Todas las migraciones SQL del proyecto (`001` a `004`) son aditivas e idempotentes (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`), por lo que regresar el contenedor backend a la imagen anterior aprobada es directamente compatible sin pérdida de datos ni necesidad de migraciones destructivas (`requires_db_down_migration: false`).
 
 ### 3.2 Evidencia de Detección de Fallo, Rollback y Re-verificación
