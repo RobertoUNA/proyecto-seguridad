@@ -200,12 +200,17 @@ El detalle completo de ítems, responsables y revisores se encuentra en [`PLAN-P
 
 ```powershell
 # 1. Compilación y Linting (Backend y Frontend)
-cd backend && npm run build
+cd backend && npm run lint && npm run build
 cd ../frontend && npm run lint && npm run build
 
 # 2. Pruebas Unitarias (Workers Python y Backend)
 python -m unittest discover -s workers/cosevi -p "test_*.py" -v
-cd backend && npm test --if-present
+cd backend && npm test            # Jest: indice_cobertura (cruce.service.spec.ts)
+cd backend && npm run test:cov    # con cobertura (informe en backend/coverage)
+
+# 2b. Pruebas de integración API + BD de pruebas (Supertest). Requieren PostGIS con migraciones + backend/database/seed_test.sql
+#     y las variables DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME apuntando a la BD de PRUEBAS (nunca a datos reales).
+cd backend && npm run test:integration
 
 # 3. Análisis Estático SAST (Semgrep CE / .semgrep.yml) y Detección de Secretos (Gitleaks)
 python scripts/sast-check.py

@@ -32,7 +32,16 @@ USER root
 RUN apk upgrade --no-cache \
  && apk del --no-cache curl
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
+
+# Ítem 6.2: upstream de /api configurable sin reconstruir la imagen (misma imagen y digest en
+# docker-compose y en Render). El entrypoint de la imagen base procesa /etc/nginx/templates con
+# envsubst, SOLO para variables API_* (las variables de nginx como $host no se tocan), y escribe
+# en /tmp (admite escritura con read_only + tmpfs). Por defecto, el backend de docker-compose.
+ENV API_UPSTREAM=http://backend:3000 \
+    NGINX_ENVSUBST_FILTER=^API_ \
+    NGINX_ENVSUBST_OUTPUT_DIR=/tmp
 
 # Usuario no root explícito (UID 101 = nginx en la imagen unprivileged). Ver policy/container.rego (3.4).
 USER 101

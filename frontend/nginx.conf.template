@@ -1,0 +1,53 @@
+# nginx del frontend (Ítems 3.3 y 6.2). Sirve la SPA y reenvía /api al backend.
+# Plantilla: al arrancar, el entrypoint de la imagen la procesa con envsubst (solo variables API_*)
+# y la escribe en /tmp/default.conf, que incluye /etc/nginx/conf.d/default.conf (ver nginx.conf).
+#
+# API_UPSTREAM (definida en el Dockerfile, sobrescribible en el entorno):
+#   · docker-compose (por defecto): http://backend:3000         (red interna `edge`)
+#   · Render:                       https://<backend>.onrender.com (URL pública HTTPS; en el plan
+#     gratuito un web service no puede RECIBIR tráfico por la red privada).
+# El nombre del upstream es literal: nginx lo resuelve UNA vez al arrancar. Si la IP del backend
+# cambia (p. ej. en Render), hay que reiniciar el frontend (ver docs/ssdcl/06-despliegue-render.md).
+#
+# Corre como UID 101 en el puerto 8080 (no requiere privilegios para enlazar puertos < 1024).
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Cabeceras básicas de seguridad. Se declaran solo en el nivel server: si un
+    # location declara add_header propio, nginx descarta las heredadas.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # API: el frontend solo consume /api del backend propio (KB, matriz de acceso).
+    location /api/ {
+        proxy_pass ${API_UPSTREAM};
+        proxy_http_version 1.1;
+        # Ítem 6.2: Host del UPSTREAM (backend:3000 en compose, <backend>.onrender.com en Render).
+        # Con $host se enviaría el dominio del frontend y el proxy de Render enrutaría mal.
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # Ítem 7.2: se SOBRESCRIBE con la IP real de la conexión; nunca se agrega el valor que
+        # envía el cliente (con $proxy_add_x_forwarded_for podría falsificar su actor_id).
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+        # Ítem 6.2: solo aplican si API_UPSTREAM es https://. nginx NO verifica el certificado del
+        # upstream por defecto: se exige verificación contra las CA del sistema y se envía SNI.
+        proxy_ssl_server_name on;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 3;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+    }
+
+    # SPA: rutas desconocidas vuelven a index.html.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
