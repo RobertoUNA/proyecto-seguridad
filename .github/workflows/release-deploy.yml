@@ -1,0 +1,235 @@
+name: Release SSDLC — Publicación en Docker Hub por SHA y digest (Etapa 5)
+
+# Ítem 5.5 (THR-05 / CTL-05, SEC-03, EXT-06) · Responsable: Brandon Corrales · Revisor: Roberto
+#
+# Publica en Docker Hub la MISMA imagen que aprobó las comprobaciones:
+#   1. Solo tras un push a main/development cuyo CI (3.1/3.2) y contenedores (3.3/3.4) terminaron en success.
+#   2. Verifica con la API de checks que TODOS los checks requeridos de ese SHA están en success.
+#   3. Construye cada imagen UNA vez, vuelve a pasar Trivy (image) y Conftest sobre esa imagen como
+#      compuerta final y publica ESA imagen (re-etiquetado, sin reconstruir) como sha-<SHA completo>
+#      (+ development en esa rama). Nunca `latest`.
+#   4. Obtiene el digest real del registro y genera candidate-release-<sha>.json (artefacto, sin commit).
+# Requisitos externos (Roberto): rama development en origin y secretos DOCKERHUB_USERNAME / DOCKERHUB_TOKEN (SEC-03).
+# Nota: GitHub solo dispara workflow_run con la versión de este archivo que esté en la rama por defecto (main).
+
+on:
+  workflow_run:
+    workflows:
+      - "CI SSDLC — Calidad, SAST, Secretos y SCA (Etapa 3)"
+      - "Contenedores SSDLC — Imagen candidata, Trivy y SBOM (Etapa 3)"
+    types: [completed]
+    branches: [main, development]
+
+# Permisos mínimos: leer código, ejecuciones y checks. No se escribe en el repositorio.
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+# Ambos workflows disparan este para el mismo SHA: se serializan y nunca se publican en paralelo.
+concurrency:
+  group: release-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  SHA: ${{ github.event.workflow_run.head_sha }}
+  REF: ${{ github.event.workflow_run.head_branch }}
+
+jobs:
+  # ===========================================================================
+  # Compuerta 1: el SHA tiene TODOS los checks requeridos en success
+  # ===========================================================================
+  required-checks:
+    name: "5.5 Compuerta: checks requeridos del SHA"
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'development')
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.checks.outputs.ready }}
+    steps:
+      - name: Consultar check runs del SHA evaluado
+        id: checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          required=(
+            "3.1 Calidad, Build, Pruebas y Ambiente Aislado"
+            "3.2 Seguridad: Semgrep CE, Gitleaks y OSV-Scanner"
+            "3.3 Imagen candidata: Build, Trivy y SBOM"
+            "3.4 Políticas Conftest: no privileged y USER no root"
+          )
+          gh api --paginate "repos/${REPO}/commits/${SHA}/check-runs?per_page=100" \
+            --jq '.check_runs[] | {name, status, conclusion, started_at, html_url}' | jq -s . > checks.json
+          failed=0; pending=0
+          {
+            echo "### Ítem 5.5 — Checks requeridos de \`${SHA}\` (${REF})"
+            echo "| Check | Estado | Conclusión |"
+            echo "| :--- | :--- | :--- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for name in "${required[@]}"; do
+            # Si un job se re-ejecutó hay varios check runs con el mismo nombre: cuenta el más reciente.
+            run=$(jq -c --arg n "$name" '[.[] | select(.name == $n)] | sort_by(.started_at) | last // empty' checks.json)
+            if [[ -z "$run" ]]; then
+              status="ausente"; conclusion="sin resultado"; failed=1
+            else
+              status=$(jq -r '.status' <<<"$run"); conclusion=$(jq -r '.conclusion // "sin resultado"' <<<"$run")
+              if [[ "$status" != "completed" ]]; then pending=1
+              elif [[ "$conclusion" != "success" ]]; then failed=1; fi
+            fi
+            echo "| ${name} | ${status} | ${conclusion} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [[ "$failed" == 1 ]]; then
+            echo "::error::Hay checks requeridos fallidos, omitidos o sin resultado para ${SHA}: NO se publica."
+            exit 1
+          fi
+          if [[ "$pending" == 1 ]]; then
+            # El otro workflow aún no termina: esta ejecución no publica ni aprueba nada. Su propia
+            # finalización vuelve a disparar este workflow, que repetirá la compuerta.
+            echo "::notice::Checks requeridos aún en ejecución para ${SHA}: no se publica en esta ejecución."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+  # ===========================================================================
+  # Compuerta 2 + publicación: build único, Trivy + Conftest, push por SHA, digest
+  # ===========================================================================
+  publish:
+    name: "5.5 Build único, compuerta final y publicación en Docker Hub"
+    needs: required-checks
+    if: needs.required-checks.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verificar secretos de publicación (SEC-03)
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -z "${DH_USER}" || -z "${DH_TOKEN}" ]]; then
+            echo "::error::SEC-03 no configurado: faltan DOCKERHUB_USERNAME y/o DOCKERHUB_TOKEN en GitHub Actions Secrets. No se publica y el candidato NO se considera aprobado."
+            exit 1
+          fi
+
+      - name: Checkout exactamente del SHA evaluado
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+
+      - name: Login en Docker Hub
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Etiquetas inmutables ya publicadas
+        id: existing
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          # Un SHA ya publicado no se vuelve a publicar: una reconstrucción produciría otro digest.
+          exists=false
+          for c in backend frontend; do
+            if docker buildx imagetools inspect "docker.io/${DH_USER}/proyecto-seguridad-${c}:sha-${SHA}" >/dev/null 2>&1; then exists=true; fi
+          done
+          echo "exists=${exists}" >> "$GITHUB_OUTPUT"
+          if [[ "$exists" == true ]]; then
+            echo "::notice::sha-${SHA} ya existe en Docker Hub: no se reconstruye ni se sobrescribe."
+          fi
+
+      # Build ÚNICO + Trivy image (HIGH/CRITICAL corregibles bloquean) + SBOM sobre esas mismas imágenes.
+      - name: Compuerta final — build único, Trivy (config + image) y SBOM
+        if: steps.existing.outputs.exists == 'false'
+        run: bash scripts/container-scan.sh "$SHA"
+
+      - name: Compuerta final — Conftest sobre los Dockerfiles y docker-compose.yml
+        if: steps.existing.outputs.exists == 'false'
+        run: bash scripts/policy-check.sh "$SHA"
+
+      - name: Publicar ESA imagen por SHA (sin reconstruir) y obtener el digest real
+        if: steps.existing.outputs.exists == 'false'
+        id: push
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          set -euo pipefail
+          for c in backend frontend; do
+            local_ref="proyecto-seguridad-${c}:sha-${SHA}"
+            repo="docker.io/${DH_USER}/proyecto-seguridad-${c}"
+            id_before=$(docker image inspect --format '{{.Id}}' "$local_ref")
+            docker tag "$local_ref" "${repo}:sha-${SHA}"
+            docker push "${repo}:sha-${SHA}"
+            if [[ "$REF" == "development" ]]; then
+              # Referencia móvil al último candidato aprobado de development (no reemplaza al digest).
+              docker tag "$local_ref" "${repo}:development"
+              docker push "${repo}:development"
+            fi
+            id_after=$(docker image inspect --format '{{.Id}}' "${repo}:sha-${SHA}")
+            [[ "$id_before" == "$id_after" ]] || { echo "::error::El image ID cambió (${c}): no es la imagen evaluada."; exit 1; }
+            digest=$(docker buildx imagetools inspect "${repo}:sha-${SHA}" --format '{{json .Manifest}}' | jq -r '.digest')
+            [[ "$digest" == sha256:* ]] || { echo "::error::No se pudo obtener el digest de ${c}"; exit 1; }
+            # Verificación: el digest resuelve a la misma imagen.
+            docker pull "${repo}@${digest}" >/dev/null
+            [[ "$(docker image inspect --format '{{.Id}}' "${repo}@${digest}")" == "$id_before" ]] || { echo "::error::pull por digest no devuelve la imagen evaluada (${c})"; exit 1; }
+            echo "${c}_image=${repo}@${digest}" >> "$GITHUB_OUTPUT"
+            echo "${c}_id=${id_before}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Generar candidate-release-<sha>.json (sin commit al repo)
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          BACKEND_IMAGE: ${{ steps.push.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ steps.push.outputs.frontend_image }}
+          BACKEND_ID: ${{ steps.push.outputs.backend_id }}
+          FRONTEND_ID: ${{ steps.push.outputs.frontend_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TRIGGER_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          jq -n \
+            --arg sha "$SHA" --arg ref "$REF" \
+            --arg be "$BACKEND_IMAGE" --arg fe "$FRONTEND_IMAGE" \
+            --arg beid "$BACKEND_ID" --arg feid "$FRONTEND_ID" \
+            --arg run "$RUN_URL" --arg trig "$TRIGGER_URL" \
+            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              item: "5.5", commit_sha: $sha, ref: $ref, published_at: $at,
+              backend_image: $be, frontend_image: $fe,
+              local_image_ids: {backend: $beid, frontend: $feid},
+              tags: (["sha-" + $sha] + (if $ref == "development" then ["development"] else [] end)),
+              gate: {required_checks: "success (3.1, 3.2, 3.3, 3.4)", trivy_image: "PASS", conftest: "PASS"},
+              links: {release_run: $run, triggering_run: $trig},
+              artifacts: {
+                this_run: ["release-candidate-" + $sha, "release-gate-reports-" + $sha],
+                ci: ["quality-and-smoke-reports-" + $sha, "security-reports-" + $sha],
+                containers: ["container-reports-" + $sha, "conftest-reports-" + $sha],
+                sbom: ["sbom-backend-" + $sha + ".cdx.json", "sbom-frontend-" + $sha + ".cdx.json"]
+              },
+              deploy_note: "Desplegar por digest (backend_image / frontend_image), nunca por etiqueta."
+            }' > "candidate-release-${SHA}.json"
+          cat "candidate-release-${SHA}.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir candidate-release como artefacto
+        if: steps.existing.outputs.exists == 'false'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: release-candidate-${{ env.SHA }}
+          path: candidate-release-${{ env.SHA }}.json
+          if-no-files-found: error
+
+      - name: Subir reportes de la compuerta final (Trivy, SBOM, Conftest)
+        if: always() && steps.existing.outputs.exists == 'false'
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: release-gate-reports-${{ env.SHA }}
+          path: |
+            reports/container-scan-*.json
+            reports/trivy-*.json
+            reports/sbom-*.cdx.json
+            reports/conftest-*.json
+            reports/conftest-insecure-demo-*.txt
+          if-no-files-found: warn

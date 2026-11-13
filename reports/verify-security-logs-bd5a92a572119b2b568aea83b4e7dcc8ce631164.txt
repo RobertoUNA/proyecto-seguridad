@@ -1,0 +1,6 @@
+Ítem 7.2 — verify-security-logs.py
+Archivo: reports/security-events-sample-bd5a92a572119b2b568aea83b4e7dcc8ce631164.jsonl
+Eventos analizados: 6  |  por tipo: {"abuse_suspected": 1, "access_denied": 1, "not_found": 3, "validation_rejected": 1}
+Patrones encontrados: ['sql_injection']
+Comprobaciones: 5 IP(s) de cliente, 8 valor(es) prohibido(s), cabeceras Authorization/Cookie, IPs en claro, formato, patrones esperados ['sql_injection'], eventos esperados ['validation_rejected', 'not_found', 'abuse_suspected', 'access_denied']
+RESULTADO: PASS — sin IPs en claro, sin valores de parámetros, sin Authorization/Cookie; inyección marcada.

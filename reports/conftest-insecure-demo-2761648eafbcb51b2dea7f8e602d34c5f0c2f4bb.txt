@@ -1,0 +1,47 @@
+Ítem 3.4 — Demostración Conftest (THR-05 / CTL-05)
+Commit: 2761648eafbcb51b2dea7f8e602d34c5f0c2f4bb
+Fecha (UTC): 2026-11-12T00:35:33Z
+Versiones: Conftest: v0.71.1 / OPA: 1.21.1
+Imagen: openpolicyagent/conftest:v0.71.1@sha256:0e77cdf7c1fcde035f3c579e4aaa6664ee2a8be5777eaa9af9f520cdd02280c0
+
+================ CASO PERMITIDO (archivos reales) ================
+$ conftest test --policy policy --parser dockerfile backend/Dockerfile
+
+7 tests, 7 passed, 0 warnings, 0 failures, 0 exceptions
+
+$ conftest test --policy policy --parser dockerfile frontend/Dockerfile
+
+7 tests, 7 passed, 0 warnings, 0 failures, 0 exceptions
+
+$ conftest test --policy policy --parser yaml docker-compose.yml
+
+7 tests, 7 passed, 0 warnings, 0 failures, 0 exceptions
+
+================ CASO RECHAZADO (policy/examples) ================
+$ conftest test --policy policy --parser dockerfile policy/examples/Dockerfile.insecure
+FAIL - policy/examples/Dockerfile.insecure - main - [THR-05/CTL-05] Dockerfile: la etapa final no declara ninguna instrucción USER, por lo que el contenedor se ejecutaría como root. Corrección: agregue 'USER <usuario no root>' (por ejemplo 'USER node' o 'USER 101') en la etapa final, después de los pasos que requieren root.
+
+7 tests, 6 passed, 0 warnings, 1 failure, 0 exceptions
+(exit code 1)
+
+$ conftest test --policy policy --parser dockerfile policy/examples/Dockerfile.insecure-root
+FAIL - policy/examples/Dockerfile.insecure-root - main - [THR-05/CTL-05] Dockerfile: la última instrucción USER de la etapa final es 'root', que corresponde a root (UID 0). Corrección: termine la etapa final con un usuario sin privilegios, por ejemplo 'USER node' (UID 1000) o 'USER 101'; si necesita root para instalar paquetes, vuelva al usuario no root después.
+
+7 tests, 6 passed, 0 warnings, 1 failure, 0 exceptions
+(exit code 1)
+
+$ conftest test --policy policy --parser yaml policy/examples/docker-compose.insecure.yml
+FAIL - policy/examples/docker-compose.insecure.yml - main - [THR-05/CTL-05] docker-compose: el servicio 'backend' usa 'privileged: true', que da acceso a todos los dispositivos y capacidades del host (permite escapar del contenedor). Corrección: elimine 'privileged' y, si hace falta, otorgue solo la capacidad mínima con 'cap_add'.
+FAIL - policy/examples/docker-compose.insecure.yml - main - [THR-05/CTL-05] docker-compose: el servicio 'db' fuerza 'user: 0' (root), anulando el USER no root de la imagen. Corrección: elimine 'user:' para usar el de la imagen o indique un UID no root, por ejemplo 'user: "1000:1000"'.
+
+7 tests, 5 passed, 0 warnings, 2 failures, 0 exceptions
+(exit code 1)
+
+================ VERIFICACIÓN DEL SCRIPT ================
+conftest verify: PASS (25/25)
+Archivos reales permitidos: PASS
+  policy/examples/Dockerfile.insecure: REJECTED (1 deny)
+  policy/examples/Dockerfile.insecure-root: REJECTED (1 deny)
+  policy/examples/docker-compose.insecure.yml: REJECTED (2 deny)
+Ejemplos inseguros rechazados como se esperaba: PASS
+RESULTADO GLOBAL: APPROVED

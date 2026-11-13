@@ -1,0 +1,106 @@
+# =============================================================================
+# Stack local / candidato del Observatorio — Ítem 3.3 (THR-03, THR-05 / CTL-03, CTL-05)
+# Responsable: Brandon Corrales · Revisor: Roberto
+#
+# Uso (la contraseña SOLO como variable de entorno de la sesión, nunca en un archivo):
+#   PowerShell:  $env:DB_PASSWORD = '<valor-ficticio>'; docker compose up -d --build
+#   Bash:        DB_PASSWORD='<valor-ficticio>' docker compose up -d --build
+# Puertos del host configurables (solo 127.0.0.1): BACKEND_HOST_PORT (3000), FRONTEND_HOST_PORT (8080).
+# La BD carga las migraciones y la semilla FICTICIA backend/database/seed_test.sql (igual que el CI).
+# =============================================================================
+name: proyecto-seguridad
+
+# Rotación de logs de Docker (base de la retención de eventos de seguridad, ítem 7.2).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  db:
+    image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
+    environment:
+      POSTGRES_USER: seguridad_vial
+      POSTGRES_DB: seguridad_vial_db
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD como variable de entorno de la sesion}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Se montan archivo por archivo para no ocultar el 10_postgis.sh propio de la imagen.
+      - ./backend/database/migrations/001_create_cantones.sql:/docker-entrypoint-initdb.d/20_001_create_cantones.sql:ro
+      - ./backend/database/migrations/002_create_delitos.sql:/docker-entrypoint-initdb.d/21_002_create_delitos.sql:ro
+      - ./backend/database/migrations/003_create_accidentes.sql:/docker-entrypoint-initdb.d/22_003_create_accidentes.sql:ro
+      - ./backend/database/migrations/004_create_infraestructura.sql:/docker-entrypoint-initdb.d/23_004_create_infraestructura.sql:ro
+      - ./backend/database/seed_test.sql:/docker-entrypoint-initdb.d/30_seed_test.sql:ro
+    # Sin `ports`: PostgreSQL NO se publica al host; solo es alcanzable en la red interna `data`.
+    # Si se necesitara para desarrollo, publicarlo únicamente en loopback: "127.0.0.1:${DB_HOST_PORT:-5433}:5432".
+    networks: [data]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seguridad_vial -d seguridad_vial_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        COMMIT_SHA: ${COMMIT_SHA:-local}
+    image: proyecto-seguridad-backend:${IMAGE_TAG:-local}
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: seguridad_vial
+      DB_NAME: seguridad_vial_db
+      DB_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD como variable de entorno de la sesion}
+      PORT: "3000"
+      # Ítem 7.2: sal del hash del actor_id en los eventos de seguridad (secreto; solo desde el entorno).
+      # Si está vacía, el backend usa una sal aleatoria por proceso (actor_id no correlacionable entre reinicios).
+      LOG_ACTOR_SALT: ${LOG_ACTOR_SALT:-}
+      # Proxy de confianza para el actor_id (equivale a trust proxy = 1): X-Forwarded-For solo se usa
+      # si la conexión viene del contenedor `frontend` (nginx, que la sobrescribe con $remote_addr).
+      LOG_TRUSTED_PROXY: frontend
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [data, edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    logging: *default-logging
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        COMMIT_SHA: ${COMMIT_SHA:-local}
+    image: proyecto-seguridad-frontend:${IMAGE_TAG:-local}
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    logging: *default-logging
+
+networks:
+  # Red de datos sin salida a Internet ni acceso desde el host: solo backend <-> db.
+  data:
+    internal: true
+  # Red de borde: frontend -> backend y puertos publicados en 127.0.0.1.
+  edge: {}
+
+volumes:
+  db-data: {}

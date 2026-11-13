@@ -1,0 +1,66 @@
+{
+    "item":  "3.3",
+    "controls":  [
+                     "THR-05",
+                     "CTL-05"
+                 ],
+    "commit":  "36f2324d42820a864bc35197e2500afd5063254c",
+    "scanned_at":  "2026-11-12T00:22:11Z",
+    "trivy":  {
+                  "version":  "0.76.2",
+                  "image":  "aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+                  "vulnerability_db_updated_at":  "2026-11-11T19:04:54.958468957Z"
+              },
+    "policy":  "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas",
+    "config_scan":  {
+                        "targets":  [
+                                        "backend/Dockerfile",
+                                        "frontend/Dockerfile",
+                                        "docker-compose.yml"
+                                    ],
+                        "report":  "reports/trivy-config-36f2324d42820a864bc35197e2500afd5063254c.json",
+                        "blocking_findings":  0,
+                        "result":  "PASS"
+                    },
+    "images":  [
+                   {
+                       "component":  "backend",
+                       "image":  "proyecto-seguridad-backend:sha-36f2324d42820a864bc35197e2500afd5063254c",
+                       "build":  "PASS",
+                       "image_id":  "sha256:fe92b043bafb26b25b12352e36ca50c4e326b5701dc5744bc9b77e1c602e8a5d",
+                       "repo_digests":  [
+                                            "proyecto-seguridad-backend@sha256:fe92b043bafb26b25b12352e36ca50c4e326b5701dc5744bc9b77e1c602e8a5d"
+                                        ],
+                       "revision_label":  "36f2324d42820a864bc35197e2500afd5063254c",
+                       "image_scan":  "FAIL",
+                       "image_report":  "reports/trivy-image-backend-36f2324d42820a864bc35197e2500afd5063254c.json",
+                       "config_digest":  "sha256:130b3157937aa63bd57bb5b7fcff932792314ce51d25586e0023c004fba6d300",
+                       "vulnerabilities":  {
+                                               "critical":  0,
+                                               "high":  9
+                                           },
+                       "sbom":  "PASS",
+                       "sbom_report":  "reports/sbom-backend-36f2324d42820a864bc35197e2500afd5063254c.cdx.json"
+                   },
+                   {
+                       "component":  "frontend",
+                       "image":  "proyecto-seguridad-frontend:sha-36f2324d42820a864bc35197e2500afd5063254c",
+                       "build":  "PASS",
+                       "image_id":  "sha256:80cc57c398ae60863f41d7bd5fe9b19bb20a6de3b731b7887c5d9928fb099ad9",
+                       "repo_digests":  [
+                                            "proyecto-seguridad-frontend@sha256:80cc57c398ae60863f41d7bd5fe9b19bb20a6de3b731b7887c5d9928fb099ad9"
+                                        ],
+                       "revision_label":  "36f2324d42820a864bc35197e2500afd5063254c",
+                       "image_scan":  "PASS",
+                       "image_report":  "reports/trivy-image-frontend-36f2324d42820a864bc35197e2500afd5063254c.json",
+                       "config_digest":  "sha256:cec8df458bade5fb926f1cfdae6854d34e6746b6bcd9370367974f2a4fda6389",
+                       "vulnerabilities":  {
+                                               "critical":  0,
+                                               "high":  0
+                                           },
+                       "sbom":  "PASS",
+                       "sbom_report":  "reports/sbom-frontend-36f2324d42820a864bc35197e2500afd5063254c.cdx.json"
+                   }
+               ],
+    "result":  "FAILED"
+}
