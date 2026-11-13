@@ -7,6 +7,7 @@ import { CoseviModule } from './modules/cosevi/cosevi.module';
 import { OsmModule } from './modules/osm/osm.module';
 import { CruceModule } from './modules/cruce/cruce.module';
 import { HealthModule } from './modules/health/health.module';
+import { SecurityLoggingModule } from './common/security-logging.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { HealthModule } from './modules/health/health.module';
     OsmModule,
     CruceModule,
     HealthModule,
+    SecurityLoggingModule,
   ],
 })
 export class AppModule {}

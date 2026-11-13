@@ -1,0 +1,89 @@
+{
+    "item":  "2.4",
+    "commit":  "8e49b16621dadd2b0083e65956e8dccbda5c812d",
+    "executed_at":  "2026-11-12T01:04:43Z",
+    "mode":  "standard",
+    "changed_files":  [
+                          ".gitignore",
+                          "scripts/container-scan.ps1",
+                          "scripts/container-scan.sh",
+                          "scripts/policy-check.ps1",
+                          "scripts/policy-check.sh",
+                          ".claude/settings.json",
+                          "backend/src/demo-hook.temp.ts",
+                          "docs/ssdcl/02-hook-agente.md",
+                          "scripts/agent-verify.ps1",
+                          "scripts/agent-verify.sh"
+                      ],
+    "steps":  [
+                  {
+                      "id":  "frontend:lint",
+                      "status":  "PASS",
+                      "command":  "cd frontend \u0026\u0026 npm run lint",
+                      "seconds":  0.4
+                  },
+                  {
+                      "id":  "frontend:build",
+                      "status":  "PASS",
+                      "command":  "cd frontend \u0026\u0026 npm run build",
+                      "seconds":  2
+                  },
+                  {
+                      "id":  "backend:lint",
+                      "status":  "SKIPPED",
+                      "command":  "cd backend \u0026\u0026 npm run lint",
+                      "seconds":  0,
+                      "note":  "el script \u0027lint\u0027 no existe en backend/package.json"
+                  },
+                  {
+                      "id":  "backend:build",
+                      "status":  "PASS",
+                      "command":  "cd backend \u0026\u0026 npm run build",
+                      "seconds":  3.1
+                  },
+                  {
+                      "id":  "backend:test",
+                      "status":  "SKIPPED",
+                      "command":  "cd backend \u0026\u0026 npm run test",
+                      "seconds":  0,
+                      "note":  "el script \u0027test\u0027 no existe en backend/package.json"
+                  },
+                  {
+                      "id":  "security:sast-check",
+                      "status":  "PASS",
+                      "command":  "python scripts/sast-check.py",
+                      "seconds":  0.1
+                  },
+                  {
+                      "id":  "security:semgrep",
+                      "status":  "PASS",
+                      "command":  "semgrep scan --config .semgrep.yml --error backend/src frontend/src workers",
+                      "seconds":  2.9
+                  },
+                  {
+                      "id":  "security:gitleaks",
+                      "status":  "PASS",
+                      "command":  "gitleaks dir --config .gitleaks.toml --redact",
+                      "seconds":  0.9
+                  },
+                  {
+                      "id":  "containers:policy",
+                      "status":  "PASS",
+                      "command":  "scripts/policy-check.ps1",
+                      "seconds":  9
+                  },
+                  {
+                      "id":  "containers:trivy",
+                      "status":  "SKIPPED",
+                      "command":  "scripts/container-scan.ps1",
+                      "seconds":  0,
+                      "note":  "solo con -Full (tarda varios minutos)"
+                  }
+              ],
+    "result":  "PASS",
+    "skipped":  [
+                    "backend:lint",
+                    "backend:test",
+                    "containers:trivy"
+                ]
+}

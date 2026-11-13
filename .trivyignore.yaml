@@ -1,0 +1,54 @@
+# =============================================================================
+# Excepción temporal EXC-03 (hallazgo HAL-04) — Trivy image del backend (ítem 3.3, THR-05 / CTL-05)
+# Aprobada por Billy Ugalde (Billy-Ugalde) en docs/ssdcl/REGISTRO-HALLAZGOS.md (commit 6e22a07).
+# Propone: Brandon Corrales · Vence: 2026-12-15
+#
+# Alcance: SOLO estas 9 CVE y SOLO en el paquete y versión exactos (purl). Si la dependencia se
+# actualiza o aparece otra CVE, NO queda cubierta. Al vencer (expired_at), Trivy vuelve a reportarlas
+# y la compuerta vuelve a fallar.
+# Las vulnerabilidades NO están corregidas: están aceptadas temporalmente. Cierre esperado: overrides
+# en backend/package.json o migración a NestJS 11 (ver HAL-04).
+# Formato: https://trivy.dev/latest/docs/configuration/filtering/#trivyignoreyaml
+# =============================================================================
+vulnerabilities:
+  # body-parser 1.20.4 (vía @nestjs/platform-express@10.4.22 / express@4.22.1)
+  - id: CVE-2026-111181
+    purls: ["pkg:npm/body-parser@1.20.4"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin cuerpos comprimidos. Vence 2026-12-15."
+    expired_at: 2026-12-15
+
+  # lodash 4.17.21 (vía @nestjs/config@3.3.0)
+  - id: CVE-2026-4800
+    purls: ["pkg:npm/lodash@4.17.21"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): el backend no invoca _.template. Vence 2026-12-15."
+    expired_at: 2026-12-15
+
+  # multer 2.0.2 (vía @nestjs/platform-express@10.4.22)
+  - id: CVE-2026-113872
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15
+  - id: CVE-2026-2359
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15
+  - id: CVE-2026-3304
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15
+  - id: CVE-2026-3520
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15
+  - id: CVE-2026-5079
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15
+  - id: CVE-2026-77078
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15
+  - id: CVE-2026-82333
+    purls: ["pkg:npm/multer@2.0.2"]
+    statement: "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15."
+    expired_at: 2026-12-15

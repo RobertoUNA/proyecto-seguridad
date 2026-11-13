@@ -1,0 +1,93 @@
+{
+  "rule": {
+    "id": "SIG-01",
+    "description": "Un mismo actor_id genera N o más eventos de rechazo/abuso dentro de una ventana deslizante de T minutos",
+    "event_types": [
+      "abuse_suspected",
+      "validation_rejected",
+      "access_denied",
+      "not_found"
+    ],
+    "threshold": 10,
+    "window_minutes": 5
+  },
+  "generated_at": "2026-11-12T02:50:46.246Z",
+  "input": {
+    "source": "reports/security-alert-logs-4aa366d1805038e6d152164961972995ffcbb011.jsonl",
+    "lines_read": 18,
+    "security_events": 18,
+    "counted_events": 18,
+    "actors": 1,
+    "time_range": {
+      "first": "2026-11-12T02:50:38.744Z",
+      "last": "2026-11-12T02:50:42.815Z"
+    }
+  },
+  "result": "SIGNAL",
+  "signals": [
+    {
+      "actor_id": "b4231f77ae16e55c",
+      "actor_id_scope": "persistent",
+      "count": 18,
+      "counts_by_event_type": {
+        "abuse_suspected": 5,
+        "access_denied": 3,
+        "not_found": 7,
+        "validation_rejected": 3
+      },
+      "status_codes": {
+        "400": 7,
+        "404": 11
+      },
+      "methods": {
+        "DELETE": 1,
+        "GET": 15,
+        "POST": 1,
+        "PUT": 1
+      },
+      "routes": {
+        "/api/delitos": 5,
+        "/api/:redacted": 3,
+        "/api/accidentes": 3,
+        "/api/admin": 1,
+        "/api/users": 1,
+        "/api/swagger": 1,
+        "/api/actuator/health": 1,
+        "/api/cantones/:id/panorama": 1,
+        "/api/cantones": 1,
+        "/api/cantones/:redacted": 1
+      },
+      "suspicious_patterns": {
+        "path_traversal": 1,
+        "sql_injection": 3,
+        "xss": 1
+      },
+      "first_seen": "2026-11-12T02:50:38.744Z",
+      "last_seen": "2026-11-12T02:50:42.815Z",
+      "duration_seconds": 4.071,
+      "total_counted_events_for_actor": 18,
+      "correlation_ids": [
+        "ac1b55e1-8e37-454b-8460-89e49195e892",
+        "edbac11e-3fce-4fae-a338-8ac63a010d80",
+        "b734b1e6-b8c5-4ece-9b4d-2d3c5534a852",
+        "81746400-51ef-4cf8-8345-997e259c8121",
+        "0adee1a2-573f-483d-9775-3f5c97a5bf49",
+        "baa76508-662c-4cee-8d61-cd8fd448aff3",
+        "518d2ead-76da-4017-a667-542d26e2b2de",
+        "d4de83b8-bb32-4360-94cb-d8bd40f3e0cc",
+        "d204cc9e-1ca3-450d-b179-001297b39724",
+        "f48077d8-38de-427e-9a83-ad954cd3593b",
+        "5e9e8f28-c2da-4d31-a3f3-66df968343ba",
+        "c4c9081a-6cf5-4bfa-ab16-f70adf9a42fc",
+        "4a8707bb-4708-4af0-8849-985fe150ef8a",
+        "f63fd2d0-a263-416e-80ba-b11a760ad2ef",
+        "a78b8273-6ae4-4268-ad73-3e2633e123fa",
+        "f5d87afa-5709-4808-8950-7f4265eb7ed8",
+        "93ba7a77-4e79-4842-8681-909653ec05d3",
+        "bd894fd2-2e5c-4768-a384-e40d944988ee"
+      ],
+      "correlation_ids_truncated": false
+    }
+  ],
+  "note": "Señal para investigación humana (7.4). No es una alerta con notificación (7.3), no bloquea ni modifica nada."
+}
