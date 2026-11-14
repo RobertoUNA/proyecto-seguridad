@@ -8,13 +8,14 @@
 # como descripción reproducible y revisable de lo desplegado. Si se aplicara como Blueprint, crearía
 # los mismos recursos.
 #
-# - Imágenes por DIGEST: candidato 6342cd32e5cb675ca7e26448e93cb1ae795d0d16
-#   (reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json). No se reconstruyen.
+# - Imágenes por DIGEST: candidato 0961a7ec33de584c75f8215c0aab2c124bd756d4
+#   (reports/candidate-release-0961a7ec33de584c75f8215c0aab2c124bd756d4.json, Release SSDLC #19). No se reconstruyen.
 # - Sin valores secretos:
 #   · DB_PASSWORD, DB_USER y DB_NAME salen de la base (fromDatabase).
 #   · LOG_ACTOR_SALT se genera en Render (generateValue).
 #   · DB_HOST se pide al crear (sync: false): fromDatabase no expone host/port para Postgres.
-# - Rollback (5.4): cambiar ambos digests a los de 384d680828efecfbefbada3ca3bbd2e61f36cc48.
+# - Rollback: cambiar ambos digests a los de 6342cd32e5cb675ca7e26448e93cb1ae795d0d16
+#   (backend sha256:b1763f4d…, frontend sha256:ef7f7909…; ver docs/ssdcl/06-despliegue-render.md).
 # =============================================================================
 projects:
   - name: proyecto-seguridad
@@ -38,7 +39,7 @@ projects:
             plan: free
             region: ohio
             image:
-              url: docker.io/elrobb/proyecto-seguridad-backend@sha256:b1763f4dde20eb348f948061d9e7421e8ba9e74044c59519a8028567e8ee4d34
+              url: docker.io/elrobb/proyecto-seguridad-backend@sha256:5e94b8daae3731aa950fb85e86c15a40cbcd12aa2f0e6cd6fe8cd9914c593652
             healthCheckPath: /api/health
             envVars:
               - key: DB_HOST            # hostname INTERNO de la base (panel de la BD > Connections)
@@ -69,7 +70,7 @@ projects:
             plan: free
             region: ohio
             image:
-              url: docker.io/elrobb/proyecto-seguridad-frontend@sha256:ef7f7909e82318488a4454b6eabd80dabaa7cba64fd102c04e6e9e41487ff851
+              url: docker.io/elrobb/proyecto-seguridad-frontend@sha256:f4731411996da6a9061a551cb3ebd9b8ec3d011550dfc44c26861e0fc322001c
             healthCheckPath: /
             envVars:
               # URL PÚBLICA HTTPS del backend: los web services Free no pueden RECIBIR tráfico por la red
