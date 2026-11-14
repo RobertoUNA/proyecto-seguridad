@@ -1,0 +1,90 @@
+{
+  "item": "3.3",
+  "controls": [
+    "THR-05",
+    "CTL-05"
+  ],
+  "commit": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+  "worktree_clean": true,
+  "scanned_at": "2026-11-13T23:36:04Z",
+  "trivy": {
+    "version": "0.76.2",
+    "image": "aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+    "vulnerability_db_updated_at": "2026-11-13T19:05:12.362756469Z"
+  },
+  "policy": "Bloquea: vulnerabilidades HIGH/CRITICAL con corrección disponible (--ignore-unfixed) y configuraciones HIGH/CRITICAL fallidas, salvo excepciones aprobadas y vigentes de .trivyignore.yaml (se reportan como suprimidas)",
+  "exceptions": {
+    "ignorefile": ".trivyignore.yaml"
+  },
+  "config_scan": {
+    "targets": [
+      "backend/Dockerfile",
+      "frontend/Dockerfile",
+      "docker-compose.yml"
+    ],
+    "report": "reports/trivy-config-0961a7ec33de584c75f8215c0aab2c124bd756d4.json",
+    "blocking_findings": 0,
+    "result": "PASS"
+  },
+  "images": [
+    {
+      "component": "backend",
+      "image": "proyecto-seguridad-backend:sha-0961a7ec33de584c75f8215c0aab2c124bd756d4",
+      "build": "PASS",
+      "image_id": "sha256:12fb11d005ae011036992ba2c2a0eb2e02a0481a58b224b4795a9d5b67171321",
+      "repo_digests": [],
+      "revision_label": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+      "image_scan": "PASS",
+      "image_report": "reports/trivy-image-backend-0961a7ec33de584c75f8215c0aab2c124bd756d4.json",
+      "sbom": "PASS",
+      "sbom_report": "reports/sbom-backend-0961a7ec33de584c75f8215c0aab2c124bd756d4.cdx.json",
+      "config_digest": "sha256:12fb11d005ae011036992ba2c2a0eb2e02a0481a58b224b4795a9d5b67171321",
+      "vulnerabilities": {
+        "critical": 0,
+        "high": 0
+      },
+      "suppressed": {
+        "count": 9,
+        "ids": [
+          "CVE-2026-111181",
+          "CVE-2026-113872",
+          "CVE-2026-2359",
+          "CVE-2026-3304",
+          "CVE-2026-3520",
+          "CVE-2026-4800",
+          "CVE-2026-5079",
+          "CVE-2026-77078",
+          "CVE-2026-82333"
+        ],
+        "statements": [
+          "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin cuerpos comprimidos. Vence 2026-12-15.",
+          "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): API solo GET, sin subida de archivos (multer no se usa). Vence 2026-12-15.",
+          "HAL-04 / EXC-03 aprobada por Billy-Ugalde (6e22a07): el backend no invoca _.template. Vence 2026-12-15."
+        ]
+      }
+    },
+    {
+      "component": "frontend",
+      "image": "proyecto-seguridad-frontend:sha-0961a7ec33de584c75f8215c0aab2c124bd756d4",
+      "build": "PASS",
+      "image_id": "sha256:c884556c2ecc8ee71c8a2606f7ebd3653b644586d358f77a86a2214091f6048b",
+      "repo_digests": [],
+      "revision_label": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+      "image_scan": "PASS",
+      "image_report": "reports/trivy-image-frontend-0961a7ec33de584c75f8215c0aab2c124bd756d4.json",
+      "sbom": "PASS",
+      "sbom_report": "reports/sbom-frontend-0961a7ec33de584c75f8215c0aab2c124bd756d4.cdx.json",
+      "config_digest": "sha256:c884556c2ecc8ee71c8a2606f7ebd3653b644586d358f77a86a2214091f6048b",
+      "vulnerabilities": {
+        "critical": 0,
+        "high": 0
+      },
+      "suppressed": {
+        "count": 0,
+        "ids": [],
+        "statements": []
+      }
+    }
+  ],
+  "result": "APPROVED"
+}

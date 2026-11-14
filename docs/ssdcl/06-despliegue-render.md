@@ -2,8 +2,10 @@
 
 > **Ítems:** `6.2` (configuración segura de despliegue) y `6.4` (gestión de secretos) · **Responsable:** Brandon Corrales (`Brandon-Corrales`) · **Revisor:** Roberto (`RobertoUNA`)  
 > **Relación con la KB:** `THR-03` / `CTL-03` (secretos solo desde el entorno), `THR-05` / `CTL-05` (contenedores no root, BD sin acceso público), `THR-06` / `CTL-06` (eventos de seguridad con `actor_id`), `SEC-03` (credenciales de Docker Hub), `EXT-06` (Docker Hub).  
-> **Versión desplegada:** candidato `6342cd32e5cb675ca7e26448e93cb1ae795d0d16` ([`reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json`](../../reports/candidate-release-6342cd32e5cb675ca7e26448e93cb1ae795d0d16.json), corrida [43496370884](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43496370884)). Registro de versión: [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md).  
-> **Verificado el:** 2026-11-13 (ver [Verificación realizada](#verificación-realizada)).
+> **Versión desplegada (actual):** candidato `0961a7ec33de584c75f8215c0aab2c124bd756d4` (merge del PR #29: corrección de `HAL-09`). Registro: [`reports/candidate-release-0961a7ec33de584c75f8215c0aab2c124bd756d4.json`](../../reports/candidate-release-0961a7ec33de584c75f8215c0aab2c124bd756d4.json). Publicado por Release SSDLC #19 (corrida [43528185151](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43528185151)); la #20 ([43528188313](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43528188313)) se detuvo con "ya existe". Ver el [Historial de despliegues](#historial-de-despliegues).  
+> **Versión de recuperación:** `6342cd32e5cb675ca7e26448e93cb1ae795d0d16`.  
+> **Registro de versión:** [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md) (describe el candidato `6342cd3`).  
+> **Verificado el:** 2026-11-13 (ver [Verificación de `0961a7e`](#verificación-de-0961a7e-versión-actual)).
 
 ---
 
@@ -61,13 +63,27 @@ El upstream es configurable sin reconstruir la imagen: `API_UPSTREAM` se renderi
 
 | Servicio | Imagen desplegada |
 | :--- | :--- |
-| backend | `docker.io/elrobb/proyecto-seguridad-backend@sha256:b1763f4dde20eb348f948061d9e7421e8ba9e74044c59519a8028567e8ee4d34` |
-| frontend | `docker.io/elrobb/proyecto-seguridad-frontend@sha256:ef7f7909e82318488a4454b6eabd80dabaa7cba64fd102c04e6e9e41487ff851` |
+| backend | `docker.io/elrobb/proyecto-seguridad-backend@sha256:5e94b8daae3731aa950fb85e86c15a40cbcd12aa2f0e6cd6fe8cd9914c593652` |
+| frontend | `docker.io/elrobb/proyecto-seguridad-frontend@sha256:f4731411996da6a9061a551cb3ebd9b8ec3d011550dfc44c26861e0fc322001c` |
 
-- **Origen:** son las imágenes que publicó la compuerta `5.5` para `6342cd3`: checks `3.1`–`3.4` en `success`, Trivy PASS (backend con 9 suprimidas por `EXC-03`) y Conftest PASS. Ver [`05-publicacion-docker-hub.md`](./05-publicacion-docker-hub.md#candidatos-publicados-en-development-384d680-y-6342cd3).
-- **Historia del backend:** primero se desplegó con la imagen de `ddf5320` y luego se cambió a `6342cd3`.
-- **Commit `20f0725`:** la fusión del PR #11 solo cambió documentación. Render sigue en `6342cd3` **a propósito**, porque no hay una imagen nueva que desplegar.
-- **Versión de recuperación:** `384d680828efecfbefbada3ca3bbd2e61f36cc48`, con backend `sha256:af8327426f52f6565f20fa4cc2aa5d57902dded2b9f2fe0e8fe7fef53616f7ac` y frontend `sha256:bf74dc0f54f083be68774b34f5076c0ff4f7e36295c7c55bcafda181c2fb2d54`. `ddf5320` **no sirve** en Render: su frontend tiene el upstream fijo `backend:3000` y nginx no arranca.
+- **Origen:** son las imágenes que publicó la compuerta `5.5` para `0961a7e` en la corrida [43528185151](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43528185151).
+  - Checks `3.1`–`3.4` en `success`; compuerta final `APPROVED` (Trivy PASS, backend con 9 suprimidas por `EXC-03`, SBOM PASS y Conftest PASS, con `worktree_clean: true`).
+  - Las etiquetas `sha-0961a7e…` y `development` apuntan a estos digests; `latest` no existe.
+  - Las imágenes llevan `org.opencontainers.image.revision=0961a7ec33de584c75f8215c0aab2c124bd756d4` y usuario `node` / `101`.
+- **Versión de recuperación: `6342cd32e5cb675ca7e26448e93cb1ae795d0d16`**, con backend `docker.io/elrobb/proyecto-seguridad-backend@sha256:b1763f4dde20eb348f948061d9e7421e8ba9e74044c59519a8028567e8ee4d34` y frontend `docker.io/elrobb/proyecto-seguridad-frontend@sha256:ef7f7909e82318488a4454b6eabd80dabaa7cba64fd102c04e6e9e41487ff851`.
+  - Corrió en Render con la semilla y con los datos reales (smoke test 8/8 en ambos casos).
+  - Su frontend ya tiene el upstream configurable; lo único que le falta es la corrección de `HAL-09`.
+
+### Historial de despliegues
+
+| # | Candidato | Imágenes (backend / frontend) | Motivo del cambio | Estado |
+| :-: | :--- | :--- | :--- | :--- |
+| 1 | `ddf53201e2899b99bd859b36f2ba28b8676e9d07` (`main`, corrida [43472950185](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43472950185)) | `5bfc15e6…` / `e478b510…` | Primera publicación real. Solo el backend llegó a correr en Render: el frontend tiene `proxy_pass http://backend:3000` fijo y nginx no arranca fuera de docker-compose. | Retirado; **no sirve** para recuperación en Render |
+| 2 | `6342cd32e5cb675ca7e26448e93cb1ae795d0d16` (`development`, corrida [43496370884](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43496370884)) | `b1763f4d…` / `ef7f7909…` | Incluye el upstream configurable (`API_UPSTREAM`, PR #19) y las pruebas del backend (PR #7). Primer despliegue completo (frontend y backend). Después se cargaron los datos reales. La fusión `20f0725` (PR #11) solo cambió documentación, así que se mantuvo `6342cd3`. | **Versión de recuperación** |
+| 3 | `0961a7ec33de584c75f8215c0aab2c124bd756d4` (`development`, corrida [43528185151](https://github.com/RobertoUNA/proyecto-seguridad/actions/runs/43528185151)) | `5e94b8da…` / `f4731411…` | Corrección de `HAL-09` (panorama con filtro de cantón), PR #29. Entre `6342cd3` y `0961a7e` solo cambian `frontend/src/App.tsx` y `frontend/src/components/CantonDetail.tsx`. El backend tiene el mismo código, pero se reconstruyó en la compuerta y por eso su digest es otro. | **Desplegado (actual)** |
+
+- **`384d680`** (backend `af832742…`, frontend `bf74dc0f…`) se publicó y es compatible con Render, pero nunca se desplegó allí.
+- **`deploy/last-approved-release.json`** y el 5.4 de [`docs/releases/v1.0.0-rc1.md`](../releases/v1.0.0-rc1.md) todavía apuntan a `384d680`. Actualizarlos a `6342cd3` les corresponde a sus dueños: Roberto (`6.6`) y Jose (`5.1`/`5.4`).
 
 ### Reproducir desde cero
 
@@ -97,7 +113,23 @@ El upstream es configurable sin reconstruir la imagen: `API_UPSTREAM` se renderi
 5. **Frontend.** Crear un **New → Web Service → Existing image** con `docker.io/elrobb/proyecto-seguridad-frontend@sha256:<digest del mismo candidato>`, plan Free, región Ohio y health check `/`. Variables: `API_UPSTREAM=https://<backend>.onrender.com` y `PORT=8080`.
 6. **Verificar** como en la sección siguiente: despertar el backend y luego correr el smoke test contra la URL del frontend.
 
-### Verificación realizada
+### Verificación de `0961a7e` (versión actual)
+
+El 2026-11-13, con los datos reales y después de despertar el backend:
+
+| Comprobación | Resultado |
+| :--- | :--- |
+| `GET <frontend>/api/health` y `GET <backend>/api/health` | `200`, `status: ok`, `database: up`, PostGIS `3.6`, **`commit_sha: 0961a7ec33de584c75f8215c0aab2c124bd756d4`** en ambos: [`reports/render-health-0961a7ec33de584c75f8215c0aab2c124bd756d4.json`](../../reports/render-health-0961a7ec33de584c75f8215c0aab2c124bd756d4.json) |
+| `scripts/smoke-test.ps1 -BaseUrl https://proyecto-seguridad-frontend.onrender.com` | **APPROVED 8/8**: 85 cantones; San José `indice_cobertura` 89; `999999` → 404; fecha inválida → 400. Reporte: [`reports/smoke-test-render-0961a7ec33de584c75f8215c0aab2c124bd756d4.json`](../../reports/smoke-test-render-0961a7ec33de584c75f8215c0aab2c124bd756d4.json). Ese reporte no incluye `commit_sha`, porque el campo se agregó en el PR #23, que se fusionó en `main` y aún no está en `development`; el commit queda demostrado por el reporte de `/api/health`. |
+| `HAL-09` en el navegador (verificado por Brandon) | `HOMICIDIO` + Dota + Aplicar muestra el panorama (índice 15). `ASALTO` + Cartago + Aplicar muestra el panorama (índice 60, 1 358 delitos). No aparece "No se pudo cargar el panorama". `GET /api/cantones/1017/panorama` y `/3001/panorama` responden 200 con índices 15 y 60 (en el mismo reporte de `/api/health`). |
+| Compuerta de la imagen | [`container-scan-0961a7e….json`](../../reports/container-scan-0961a7ec33de584c75f8215c0aab2c124bd756d4.json), [`conftest-0961a7e….json`](../../reports/conftest-0961a7ec33de584c75f8215c0aab2c124bd756d4.json), `trivy-*-0961a7e…` y `sbom-*-0961a7e…`, copiados del artefacto `release-gate-reports-0961a7e…`. Gitleaks dio `no leaks found` antes de versionarlos. |
+
+**Revisión de los reportes nuevos:** Gitleaks v8.21.2 dio `no leaks found`, y no contienen contraseñas, sales, tokens ni el host de la BD. `Env` de las imágenes nuevas:
+- **backend:** `PATH`, `NODE_VERSION`, `YARN_VERSION`, `NODE_ENV`, `PORT`, `COMMIT_SHA`;
+- **frontend:** variables de nginx y `API_UPSTREAM` por defecto;
+- ningún secreto en ninguna de las dos.
+
+### Verificación inicial (`6342cd3`)
 
 El 2026-11-13, con la **semilla ficticia** todavía cargada, y después de despertar el backend (la primera petición dio timeout y la segunda, 200). La verificación con datos reales está en [Carga de datos reales](#carga-de-datos-reales-2026-11-13).
 
@@ -224,8 +256,8 @@ La semilla ficticia (`seed_test.sql`: cantones `1001`/`2001`/`3001` con rectáng
 | Lugar | Verificación |
 | :--- | :--- |
 | Repositorio Git | **Configuración del despliegue:** `render.yaml` no contiene valores secretos (`fromDatabase`, `generateValue`, `sync: false`). No hay `.env` versionado. **Historial completo:** el check `3.2` corre Gitleaks sobre árbol e historial (`fetch-depth: 0`) en cada push; en `20f0725` dio `success`. **Evidencia nueva:** los reportes nuevos de `reports/` se revisaron con Gitleaks antes de versionarlos (`no leaks found`). |
-| Imágenes | `docker image inspect` del backend `b1763f4d…`: `Env` = `PATH`, `NODE_VERSION`, `YARN_VERSION`, `NODE_ENV=production`, `PORT=3000`, `COMMIT_SHA`, sin secretos. Búsqueda de `.env*`, `*.pem` e `id_rsa*` fuera de `node_modules`: solo los bundles públicos de CA (`/etc/ssl/cert.pem`, `/etc/ssl1.1/cert.pem`). Gitleaks sobre `/app/dist` (backend) y `/usr/share/nginx/html` (frontend), extraídos de las imágenes: `no leaks found`. |
-| Artefactos de CI | El `candidate-release` y los reportes de la compuerta (`-ddf5320…`, `-6342cd3…`) se revisaron con Gitleaks antes de copiarlos a `reports/`: `no leaks found`. El usuario `elrobb` aparece porque es parte del nombre público de la imagen; no es una credencial. |
+| Imágenes | `docker image inspect` del backend `b1763f4d…` (y del actual `5e94b8da…`, con los mismos nombres de variables): `Env` = `PATH`, `NODE_VERSION`, `YARN_VERSION`, `NODE_ENV=production`, `PORT=3000`, `COMMIT_SHA`, sin secretos. Búsqueda de `.env*`, `*.pem` e `id_rsa*` fuera de `node_modules`: solo los bundles públicos de CA (`/etc/ssl/cert.pem`, `/etc/ssl1.1/cert.pem`). Gitleaks sobre `/app/dist` (backend) y `/usr/share/nginx/html` (frontend), extraídos de las imágenes: `no leaks found`. |
+| Artefactos de CI | El `candidate-release` y los reportes de la compuerta (`-ddf5320…`, `-6342cd3…`, `-0961a7e…`) se revisaron con Gitleaks antes de copiarlos a `reports/`: `no leaks found`. El usuario `elrobb` aparece porque es parte del nombre público de la imagen; no es una credencial. |
 | Logs | **Backend:** los eventos de seguridad (`7.2`) registran `actor_id` = SHA-256(sal\|IP) truncado y nunca la IP, los valores de los parámetros ni el stack. Se verificó con la misma imagen del backend en docker-compose: [`reports/verify-security-logs-bd5a92a572119b2b568aea83b4e7dcc8ce631164.txt`](../../reports/verify-security-logs-bd5a92a572119b2b568aea83b4e7dcc8ce631164.txt) da `PASS`, sin IPs en claro, sin valores de parámetros y sin `Authorization`/`Cookie` (ver [`07-operacion-investigacion-ia.md`](./07-operacion-investigacion-ia.md)). En Render no se versionó una muestra de logs del backend. **GitHub Actions:** enmascara los secretos (`***`). |
 | Frontend (navegador) | El bundle no contiene la URL del backend ni variables del servidor. El navegador solo llama a `/api` en el mismo origen, y `API_UPSTREAM` vive solo en la configuración de nginx. Se buscó `onrender.com`, `DB_PASSWORD` y `LOG_ACTOR_SALT` en `/usr/share/nginx/html`: 0 coincidencias. |
 
@@ -247,5 +279,5 @@ La semilla ficticia (`seed_test.sql`: cantones `1001`/`2001`/`3001` con rectáng
 - **Sin `read_only` ni `cap_drop`** en Render (ver la tabla de endurecimiento).
 - **Despliegue manual.** El ítem `6.1` (despliegue automatizado) no fue seleccionado. Los servicios se crearon y actualizan a mano en el panel, siempre **por digest**, y `render.yaml` documenta el estado equivalente.
 - **Aviso de `10-listen-on-ipv6-by-default.sh`** en los logs del frontend: es informativo. El script no modifica la configuración, porque `default.conf` solo hace `include /tmp/default.conf`, y el servicio responde 200.
-- **Rollback.** En Render, revertir significa cambiar los digests de **ambos** servicios a los de `384d680` en el panel y luego correr el smoke test. Los scripts `scripts/rollback.*` (Roberto, `6.6`) restauran con docker-compose y no actúan sobre Render.
+- **Rollback.** En Render, revertir significa cambiar los digests de **ambos** servicios a los de `6342cd3` en el panel (backend `b1763f4d…`, frontend `ef7f7909…`) y luego correr el smoke test. Al revertir vuelve el defecto `HAL-09`. Los scripts `scripts/rollback.*` (Roberto, `6.6`) restauran con docker-compose y no actúan sobre Render.
 - **Nombre del documento:** el PLAN preveía `06-despliegue-seguro.md` y `deploy/docker-compose.prod.yml`. El despliegue real es en Render y queda documentado aquí y en `render.yaml`.

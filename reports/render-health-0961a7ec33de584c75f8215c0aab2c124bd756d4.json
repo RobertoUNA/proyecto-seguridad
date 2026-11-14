@@ -1,0 +1,65 @@
+{
+  "item": "6.2",
+  "commit_sha_expected": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+  "environment": "Render — Pruebas (Ohio, Free)",
+  "images": {
+    "backend": "docker.io/elrobb/proyecto-seguridad-backend@sha256:5e94b8daae3731aa950fb85e86c15a40cbcd12aa2f0e6cd6fe8cd9914c593652",
+    "frontend": "docker.io/elrobb/proyecto-seguridad-frontend@sha256:f4731411996da6a9061a551cb3ebd9b8ec3d011550dfc44c26861e0fc322001c"
+  },
+  "checked_at": "2026-11-13T23:58:23Z",
+  "checks": [
+    {
+      "name": "via_frontend",
+      "url": "https://proyecto-seguridad-frontend.onrender.com/api/health",
+      "http_status": 200,
+      "body": {
+        "status": "ok",
+        "timestamp": "2026-11-13T23:58:24.684Z",
+        "uptime_seconds": 336,
+        "version": "0.1.0",
+        "commit_sha": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+        "database": {
+          "status": "up",
+          "postgis_version": "3.6 USE_GEOS=1 USE_PROJ=1 USE_STATS=1"
+        },
+        "fuente": "INTERNAL/HEALTH",
+        "fecha_obtencion": "2026-11-13T23:58:24.684Z"
+      },
+      "commit_sha_match": true
+    },
+    {
+      "name": "via_backend",
+      "url": "https://proyecto-seguridad-backend-ajby.onrender.com/api/health",
+      "http_status": 200,
+      "body": {
+        "status": "ok",
+        "timestamp": "2026-11-13T23:58:25.038Z",
+        "uptime_seconds": 336,
+        "version": "0.1.0",
+        "commit_sha": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+        "database": {
+          "status": "up",
+          "postgis_version": "3.6 USE_GEOS=1 USE_PROJ=1 USE_STATS=1"
+        },
+        "fuente": "INTERNAL/HEALTH",
+        "fecha_obtencion": "2026-11-13T23:58:25.038Z"
+      },
+      "commit_sha_match": true
+    },
+    {
+      "name": "panorama_dota_1017",
+      "url": "https://proyecto-seguridad-frontend.onrender.com/api/cantones/1017/panorama",
+      "http_status": 200,
+      "indice_cobertura": 15,
+      "delitos_total": 222
+    },
+    {
+      "name": "panorama_cartago_3001",
+      "url": "https://proyecto-seguridad-frontend.onrender.com/api/cantones/3001/panorama",
+      "http_status": 200,
+      "indice_cobertura": 60,
+      "delitos_total": 7990
+    }
+  ],
+  "result": "PASS"
+}

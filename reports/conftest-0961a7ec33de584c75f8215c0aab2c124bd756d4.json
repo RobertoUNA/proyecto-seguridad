@@ -1,0 +1,95 @@
+{
+  "item": "3.4",
+  "controls": [
+    "THR-05",
+    "CTL-05"
+  ],
+  "commit": "0961a7ec33de584c75f8215c0aab2c124bd756d4",
+  "worktree_clean": true,
+  "executed_at": "2026-11-13T23:36:10Z",
+  "conftest": {
+    "version": "Conftest: v0.71.1  OPA: 1.21.1",
+    "image": "openpolicyagent/conftest:v0.71.1@sha256:0e77cdf7c1fcde035f3c579e4aaa6664ee2a8be5777eaa9af9f520cdd02280c0"
+  },
+  "policy": "policy/container.rego",
+  "verify": {
+    "result": "PASS",
+    "tests": 25,
+    "passed": 25,
+    "failed": 0
+  },
+  "allowed": {
+    "expectation": "Sin fallos ni advertencias",
+    "result": "PASS",
+    "files": [
+      {
+        "file": "backend/Dockerfile",
+        "parser": "dockerfile",
+        "executed": true,
+        "successes": 7,
+        "failures": [],
+        "warnings": [],
+        "result": "PASS"
+      },
+      {
+        "file": "frontend/Dockerfile",
+        "parser": "dockerfile",
+        "executed": true,
+        "successes": 7,
+        "failures": [],
+        "warnings": [],
+        "result": "PASS"
+      },
+      {
+        "file": "docker-compose.yml",
+        "parser": "yaml",
+        "executed": true,
+        "successes": 7,
+        "failures": [],
+        "warnings": [],
+        "result": "PASS"
+      }
+    ]
+  },
+  "insecure_demo": {
+    "expectation": "Cada ejemplo debe ser rechazado por al menos un deny",
+    "result": "PASS",
+    "files": [
+      {
+        "file": "policy/examples/Dockerfile.insecure",
+        "parser": "dockerfile",
+        "executed": true,
+        "successes": 6,
+        "failures": [
+          "[THR-05/CTL-05] Dockerfile: la etapa final no declara ninguna instrucción USER, por lo que el contenedor se ejecutaría como root. Corrección: agregue 'USER <usuario no root>' (por ejemplo 'USER node' o 'USER 101') en la etapa final, después de los pasos que requieren root."
+        ],
+        "warnings": [],
+        "result": "REJECTED"
+      },
+      {
+        "file": "policy/examples/Dockerfile.insecure-root",
+        "parser": "dockerfile",
+        "executed": true,
+        "successes": 6,
+        "failures": [
+          "[THR-05/CTL-05] Dockerfile: la última instrucción USER de la etapa final es 'root', que corresponde a root (UID 0). Corrección: termine la etapa final con un usuario sin privilegios, por ejemplo 'USER node' (UID 1000) o 'USER 101'; si necesita root para instalar paquetes, vuelva al usuario no root después."
+        ],
+        "warnings": [],
+        "result": "REJECTED"
+      },
+      {
+        "file": "policy/examples/docker-compose.insecure.yml",
+        "parser": "yaml",
+        "executed": true,
+        "successes": 5,
+        "failures": [
+          "[THR-05/CTL-05] docker-compose: el servicio 'backend' usa 'privileged: true', que da acceso a todos los dispositivos y capacidades del host (permite escapar del contenedor). Corrección: elimine 'privileged' y, si hace falta, otorgue solo la capacidad mínima con 'cap_add'.",
+          "[THR-05/CTL-05] docker-compose: el servicio 'db' fuerza 'user: 0' (root), anulando el USER no root de la imagen. Corrección: elimine 'user:' para usar el de la imagen o indique un UID no root, por ejemplo 'user: \"1000:1000\"'."
+        ],
+        "warnings": [],
+        "result": "REJECTED"
+      }
+    ]
+  },
+  "result": "APPROVED"
+}

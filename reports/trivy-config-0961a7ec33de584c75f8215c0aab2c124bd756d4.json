@@ -1,0 +1,30 @@
+{
+  "SchemaVersion": 2,
+  "Trivy": {
+    "Version": "0.76.2"
+  },
+  "ReportID": "01a1d744-6ec8-77de-b82b-25c10f320514",
+  "CreatedAt": "2026-11-13T23:35:48.680517421Z",
+  "ArtifactName": "/work/iac",
+  "ArtifactType": "filesystem",
+  "Results": [
+    {
+      "Target": "backend/Dockerfile",
+      "Class": "config",
+      "Type": "dockerfile",
+      "MisconfSummary": {
+        "Successes": 27,
+        "Failures": 0
+      }
+    },
+    {
+      "Target": "frontend/Dockerfile",
+      "Class": "config",
+      "Type": "dockerfile",
+      "MisconfSummary": {
+        "Successes": 27,
+        "Failures": 0
+      }
+    }
+  ]
+}
